@@ -15,4 +15,4 @@ Mad props to Bob Ippolito for the pytyrant package that I used as a
 template and to Harish Mallipeddi whose tora package provided the
 response handling functions I am using.  If you are looking for a
 Tyrant interface that is more of a traditional DB access system then
-give tora (http://github.com/mallipeddi/tora) a try.
+give tora a try at http://github.com/mallipeddi/tora
