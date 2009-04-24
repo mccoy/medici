@@ -1,0 +1,18 @@
+This is a thin Erlang wrapper around the Tokyo Tyrant TCP/IP API.
+
+I have tried to keep this as simple as possible for the moment.
+
+There is no connection pooling or connection handling.  If you want it, 
+do it yourself.  The app developer will have a better idea of what they
+might need or want.  In fact, it does not really do any connection bits
+at all (although it does provide a helper function to set up the connection
+for you) and you are required to pass in the socket to the Tyrant server
+for every function.
+
+Keys must be binaries, values can be anything.
+
+Mad props to Bob Ippolito for the pytyrant package that I used as a
+template and to Harish Mallipeddi whose tora package provided the
+response handling functions I am using.  If you are looking for a
+Tyrant interface that is more of a traditional DB access system then
+give tora (http://github.com/mallipeddi/tora) a try.
