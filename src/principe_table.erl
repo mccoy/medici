@@ -29,14 +29,14 @@
 %%%-------------------------------------------------------------------
 
 -module(principe_table).
--compile([export_all,binary_comprehension]).
-%% -export([connect/0, connect/2, put/3, putkeep/3, putcat/3, out/2, get/2,
-%% 	 vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
-%% 	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/4,
-%% 	 setmst/3, setindex/3, query_set_limit/3, query_set_limit/2,
-%% 	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
-%% 	 searchcount/2, searchout/2, encode_table/1, decode_table/1,
-%% 	 convert_cols/2]).
+-compile([binary_comprehension]).
+-export([connect/0, connect/2, put/3, putkeep/3, putcat/3, out/2, get/2,
+	 vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
+	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/4,
+	 setmst/3, setindex/3, query_set_limit/3, query_set_limit/2,
+	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
+	 searchcount/2, searchout/2, encode_table/1, decode_table/1,
+	 convert_cols/2]).
 %%-export([table/1])  % Not tested yet
 
 -ifdef(TEST).
