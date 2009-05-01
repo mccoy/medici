@@ -1,0 +1,15 @@
+principe: need to handle ints, ints > 32bits, and floats correctly
+when sending them to tyrant (dig into TC code to see if this will
+require the client to know the server's endianness).
+principe: need to test against fixed-length TT databases.
+principe: add edoc info.
+
+principe_table: need to handle floats as a column value type
+principe_table: need to encode floats/ints/bigints correctly
+principe_table: add edoc info.
+principe_table: schema converter? a fun that you pass in (perhaps
+as a module parameter) which automatically performs input/output
+type conversion for column values and will convert column keys to
+atoms.
+
+general: need a simple gen_server connection handler
