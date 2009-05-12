@@ -1,39 +1,38 @@
-%% Copyright 2009, Jim McCoy <mccoy@mad-scientist.com>
-%%
-%% Permission is hereby granted, free of charge, to any person
-%% obtaining a copy of this software and associated documentation
-%% files (the "Software"), to deal in the Software without
-%% restriction, including without limitation the rights to use,
-%% copy, modify, merge, publish, distribute, sublicense, and/or sell
-%% copies of the Software, and to permit persons to whom the
-%% Software is furnished to do so, subject to the following
-%% conditions:
-%%
-%% The above copyright notice and this permission notice shall be
-%% included in all copies or substantial portions of the Software.
-%%
-%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-%% EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-%% OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-%% NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-%% HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-%% WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-%% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-%% OTHER DEALINGS IN THE SOFTWARE.
- 
+%%% The contents of this file are subject to the Erlang Public License,
+%%% Version 1.1, (the "License"); you may not use this file except in
+%%% compliance with the License. You should have received a copy of the
+%%% Erlang Public License along with this software. If not, it can be
+%%% retrieved via the world wide web at http://www.erlang.org/.
+%%%
+%%% Software distributed under the License is distributed on an "AS IS"
+%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+%%% the License for the specific language governing rights and limitations
+%%% under the License.
+
 %%%-------------------------------------------------------------------
-%%% File:      principe.erl
+%%% File:      principe_little.erl
 %%% @author    Jim McCoy <mccoy@mad-scientist.com>
-%%% @copyright 2009 Jim McCoy
-%%% @doc ttserver binary interface 
+%%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
+%%%
+%%% @doc
+%%% A thin Erlang wrapper for the Tokyo Tyrant network database protocol.
+%%% Requires a Tyrant server that uses the 0.91 protocol version (Tyrant
+%%% servers of version 1.1.23 and beyond.)  
+%%%
+%%% Note: The Tyrant protocol is sensitive to endianness, specifically, while
+%%% the server will take in data in network-order it will store it in big or
+%%% little endianness depending on the architecture that the Tyrant server is
+%%% running on. This version of the principe module is for interfacing with 
+%%% little-endian servers.
+%%% @end
 %%%-------------------------------------------------------------------
 
--module(principe).
+-module(principe_little).
 -compile([binary_comprehension]).
--export([connect/0, connect/2, put/3, putkeep/3, putcat/3, putshl/4, putnr/3,
-	 out/2, get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3,
+-export([connect/0, connect/1, put/3, putkeep/3, putcat/3, putshl/4,
+	 putnr/3, out/2, get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3,
 	 addint/3, adddouble/4, sync/1, vanish/1, rnum/1, size/1, stat/1,
-	 copy/2, restore/3, setmst/3, misc/3, misc_no_update/3, ext/5]).
+	 copy/2, restore/3, setmst/3, misc/3, misc_no_update/3, ext/5, misc_arg_encode/1]).
 %%-export([table/1])  % Not tested yet
 
 -ifdef(TEST).
@@ -44,6 +43,7 @@
 %% Standard definitions
 -define(TSERVER, "localhost").
 -define(TPORT, 1978).
+-define(TOPTS, [binary, {packet, 0}, {nodelay, true}, {active, true}, {keepalive, true}]).
 -define(TIMEOUT, 5000).
 
 %% Tyrant protocol constants
@@ -63,9 +63,10 @@
 -define(ADDDOUBLE, 16#C861).
 -define(EXT, 16#C868).
 -define(SYNC, 16#C870).
--define(VANISH, 16#C871).
--define(COPY, 16#C872).
--define(RESTORE, 16#C873).
+-define(OPTIMIZE, 16#C871).
+-define(VANISH, 16#C872).
+-define(COPY, 16#C873).
+-define(RESTORE, 16#C874).
 -define(SETMST, 16#C878).
 -define(RNUM, 16#C880).
 -define(SIZE, 16#C881).
@@ -76,27 +77,44 @@
 -define(XOLCKREC, 1 bsl 0).
 -define(XOLCKGLB, 1 bsl 1).
 
-%% Some function patterns that are used frequently.  For all tyrant functions the
-%% expected type for keys and values is iolist().
+%% Some function patterns that are used frequently.
 -define(T0(Code), gen_tcp:send(Socket, [<<Code:16>>])).
 -define(T1(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, Key])).
 -define(T2(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, <<(iolist_size(Value)):32>>, Key, Value])).
+-define(T2I(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, <<4:32>>, Key, <<Value:32>>])).
 -define(R_SUCCESS, tyrant_response(Socket, fun recv_success/2)).
 -define(R_SIZE, tyrant_response(Socket, fun recv_size/2)).
 -define(R_SIZE_DATA, tyrant_response(Socket, fun recv_size_data/2)).
 -define(R_SIZE64, tyrant_response(Socket, fun recv_size64/2)).
 
 %% The Tokyo Tyrant access functions
-connect() ->
-    connect(?TSERVER, ?TPORT).
 
-connect(Server, Port) ->
-    gen_tcp:connect(Server, Port, [binary, 
-				   {packet, 0}, 
-				   {nodelay, true}, 
-				   {reuseaddr, true}, 
-				   {active, true},
-				   {keepalive, true}]).
+%% @spec connect() -> {ok, port()} | {error, Reason::term()}
+%%
+%% @doc 
+%% Establish a connection to the tyrant service.
+%% @end
+connect() ->
+    connect([]).
+
+%% @spec connect(ConnectProps::proplist()) -> {ok, port()} | {error, Reason::term()}
+%%
+%% @doc 
+%% Establish a connection to the tyrant service using properties in the
+%% ConnectProps proplist to determine the hostname, port number and tcp
+%% socket options for the connection.  Any missing parameters are filled
+%% in using the module defaults.
+%% @end
+connect(ConnectProps) ->
+    Hostname = proplists:get_value(hostname, ConnectProps, ?TSERVER),
+    Port = proplists:get_value(port, ConnectProps, ?TPORT),
+    Opts = proplists:get_value(connect_opts, ConnectProps),
+    case Opts of
+	undefined ->
+	    gen_tcp:connect(Hostname, Port, ?TOPTS);
+	_ ->
+	    gen_tcp:connect(Hostname, Port, Opts)
+    end.
 
 %% table(Socket) ->
 %%     TF = fun() -> qlc_next(firstitem(Socket)) end,
@@ -135,22 +153,74 @@ connect(Server, Port) ->
 %% qlc_next(none) ->
 %%     [].
 
-%% Store a new value for the given key
+%% Some standard types
+%%
+%% @type key() = iolist()
+%% @type value() = iolist() | integer()
+%% @type keylist() = [iolist()]
+%% @type error() = {error, term()}
+
+%% @spec put(Socket::port(), 
+%%           Key::key(), 
+%%           Value::value()) -> ok | error()
+%%
+%% @doc
+%% Call the Tyrant server to store a new value for the given key.
+%% @end
+put(Socket, Key, Value) when is_integer(Value), Value < 4294967296 ->
+    ?T2I(?PUT),
+    ?R_SUCCESS;
 put(Socket, Key, Value) ->
     ?T2(?PUT),							     
     ?R_SUCCESS.
 
-%% Put a new key/value pair into the remote database
+%% @spec putkeep(Socket::port(), 
+%%               Key::key(), 
+%%               Value::value()) -> ok | error()
+%%
+%% @doc 
+%% Call the Tyrant server to put a new key/value pair into the remote 
+%% database.  Will return an error if there is already a value for the
+%% Key provided.
+%% @end
+putkeep(Socket, Key, Value) when is_integer(Value), Value < 4294967296 ->
+    ?T2I(?PUTKEEP),
+    ?R_SUCCESS;
 putkeep(Socket, Key, Value) ->
     ?T2(?PUTKEEP),
     ?R_SUCCESS.
 
+%% @spec putcat(Socket::port(), 
+%%              Key::key(), 
+%%              Value::value()) -> ok | error()
+%%
+%% @doc 
 %% Concatenate a value to the end of the current value for a given key
+%% that is stored in the remote database.  If Key does not already
+%% exist in the database then this call will operate the same as put().
+%% @end
+putcat(Socket, Key, Value) when is_integer(Value), Value < 4294967296 ->
+    ?T2I(?PUTCAT),
+    ?R_SUCCESS;
 putcat(Socket, Key, Value) ->
     ?T2(?PUTCAT),
     ?R_SUCCESS.
 
-%% Concatenate a value to a given key and shift it to the left
+%% @spec putshl(Socket::port(), 
+%%              Key::key(), 
+%%              Value::value(), 
+%%              Width::integer()) -> ok | error()
+%%
+%% @doc 
+%% Concatenate a value to a given key in the remote database and shift the
+%% resulting value to the left until it is Width bytes long.
+%% @end
+putshl(Socket, Key, Value, Width) when is_integer(Width), is_integer(Value), Value < 4294967296 ->
+    gen_tcp:send(Socket, [<<?PUTSHL:16>>, 
+			  <<(iolist_size(Key)):32>>, 
+			  <<4:32>>, 
+			  <<Width:32>>, Key, <<Value:32>>]),
+    ?R_SUCCESS;
 putshl(Socket, Key, Value, Width) when is_integer(Width) ->
     gen_tcp:send(Socket, [<<?PUTSHL:16>>, 
 			  <<(iolist_size(Key)):32>>, 
@@ -158,21 +228,42 @@ putshl(Socket, Key, Value, Width) when is_integer(Width) ->
 			  <<Width:32>>, Key, Value]),
     ?R_SUCCESS.
 
-%% Put a key/value pair to the remote database and do not wait for a response
+%% @spec putnr(Socket::port(), 
+%%             Key::key(), 
+%%             Value::value()) -> ok
+%%
+%% @doc 
+%% Put a key/value pair to the remote database and do not wait for a response.
+%% @end
+putnr(Socket, Key, Value) when is_integer(Value), Value < 4294967296 ->
+    ?T2I(?PUTNR),
+    ?R_SUCCESS;
 putnr(Socket, Key, Value) ->
     ?T2(?PUTNR),
     ok.
 
-%% Remove a key from the remote database
+%% @spec out(Socket::port(), 
+%%           Key::key()) -> ok | error()
+%%
+%% @doc 
+%% Remove a key from the remote database.  Will return an error if Key is
+%% not in the database.
+%% @end
 out(Socket, Key) ->
     ?T1(?OUT),
     ?R_SUCCESS.
 
-%% Get the value for a given key
+%% @spec get(Socket::port(), 
+%%           Key::key()) -> binary() | error()
+%%
+%% @doc Get the value for a given key
 get(Socket, Key) ->
     ?T1(?GET),
     ?R_SIZE_DATA.
 
+%% @spec mget(Socket::port(),
+%%            KeyList::keylist()) -> [{Key::binary(), Value::binary()}] | error()
+%%
 %% Get the values for a list of keys
 mget(Socket, KeyList) when is_list(KeyList) ->
     gen_tcp:send(Socket, [<<?MGET:16>>, 
@@ -181,21 +272,39 @@ mget(Socket, KeyList) when is_list(KeyList) ->
 			 ]),
     tyrant_response(Socket, fun recv_count_4tuple/2).
 
+%% @spec vsiz(Socket::port(),
+%%            Key::iolist()) -> integer()
+%%
 %% Get the size of the value for a given key
 vsiz(Socket, Key) ->
     ?T1(?VSIZ),
-    ?R_SIZE.
+    case ?R_SIZE of
+	{error, Reason} ->
+	    {error, Reason};
+	LittleEndianData ->
+ 	    <<Val:32>> = <<LittleEndianData:32/little>>,
+	    Val
+    end.
 
-%% Start iteration protocol
+%% @spec iterinit(Socket::port()) -> ok | {error, Reason::term()}
+%%
+%% @doc Start iteration protocol.  WARNING: The tyrant iteration protocol has no
+%% concurrency controls whatsoever, so if multiple clients try to do iteration
+%% they will stomp all over each other!
 iterinit(Socket) ->
     ?T0(?ITERINIT),
     ?R_SUCCESS.
 
-%% Get the next key/value pair in the iteration protocol
+%% @spec iternext(Socket::port()) -> {Key::binary(), Value::binary()} | {error, Reason::term()}
+%%
+%% @doc Get the next key/value pair in the iteration protocol
 iternext(Socket) ->
     ?T0(?ITERNEXT),
     ?R_SIZE_DATA.
 
+%% @spec fwmkeys(Socket::port(),
+%%               Prefix::iolist(),
+%%               MaxKeys::integer()) -> [Key()::binary()]
 %% Return a number of records that match a given prefix
 fwmkeys(Socket, Prefix, MaxKeys) when is_integer(MaxKeys) ->
     gen_tcp:send(Socket, [<<?FWMKEYS:16>>, 
@@ -203,38 +312,57 @@ fwmkeys(Socket, Prefix, MaxKeys) when is_integer(MaxKeys) ->
 			  <<MaxKeys:32>>, Prefix]),
     tyrant_response(Socket, fun recv_count_2tuple/2).
 
-%% Add an integer value to the existing value of a key
+%% @spec addint(Socket::port(),
+%%              Key::iolist(),
+%%              Int::integer()) -> integer()
+%%
+%% @doc Add an integer value to the existing value of a key, returns new value
 addint(Socket, Key, Int) when is_integer(Int) ->
-    gen_tcp:send(Socket, [<<?ADDINT:16>>, <<(iolist_size(Key)):32>>, <<Int:32>>, Key]),
+    gen_tcp:send(Socket, [<<?ADDINT:16>>, <<(iolist_size(Key)):32>>, <<Int:32/little>>, Key]),
     ?R_SIZE.
 
-%% Add a float to the existing value of a key
-adddouble(Socket, Key, Integral, Fractional) when is_binary(Key), is_integer(Integral), is_integer(Fractional) ->
+%% @spec adddouble(Socket::port(),
+%%                 Key::iolist(),
+%%                 Integral::integer(),
+%%                 Fractional::integer()) -> {Integral::integer(), Fractional::integer()}
+%%
+%% @doc Add a float to the existing value of a key, returns new value.
+adddouble(Socket, Key, Integral, Fractional) when is_integer(Integral), is_integer(Fractional) ->
     gen_tcp:send(Socket, [<<?ADDDOUBLE:16>>, <<(iolist_size(Key)):32>>, 
 			  <<Integral:64>>, <<Fractional:64>>, Key]),
     tyrant_response(Socket, fun recv_size64_size64/2).    
 
-%% Call sync() on the remote database
+%% @spec sync(Socket::port()) -> ok | {error, Reason::term()}
+%%
+%% @doc Call sync() on the remote database
 sync(Socket) ->
     ?T0(?SYNC),
     ?R_SUCCESS.
 
-%% Remove all records from the remote database
+%% @spec vanish(Socket::port()) -> ok | {error, Reason::term()}
+%%
+%% @doc Remove all records from the remote database
 vanish(Socket) ->
     ?T0(?VANISH),
     ?R_SUCCESS.
 
-%% Get the number of records in the remote database
+%% @spec rnum(Socket::port()) -> integer()
+%%
+%% @doc Get the number of records in the remote database
 rnum(Socket) ->
     ?T0(?RNUM),
     ?R_SIZE64.
 
-%% Get the size in bytes of the remote database
+%% @spec size(Socket::port()) -> integer()
+%%
+%% @doc Get the size in bytes of the remote database
 size(Socket) ->
     ?T0(?SIZE),
     ?R_SIZE64.
 
-%% Get the status string of a remote database
+%% @spec stat(Socket::port()) -> proplist()
+%%
+%% @doc Get the status string of a remote database
 stat(Socket) ->
     ?T0(?STAT),
     StatString = ?R_SIZE_DATA,
@@ -253,12 +381,16 @@ stat_to_proplist([], Acc) ->
 stat_to_proplist([H1, H2 | T], Acc) ->
     stat_to_proplist(T, [{list_to_atom(H1), H2} | Acc]).
 
-%% Make a copy of the database file of the remote database
+%% @spec copy(Socket::port(), iolist()) -> ok | {error, Reason::term()}
+%%
+%% @doc Make a copy of the database file of the remote database
 copy(Socket, Key) when is_binary(Key) ->
     ?T1(?COPY), % Using 'Key' so that the macro binds properly...
     ?R_SUCCESS.
 
-%% Restore the database to a particular point in time from the update log
+%% @spec restore(Socket::port(), PathName::iolist(), TimeStamp::integer) -> ok | {error, Reason::term()}
+%%
+%% @doc Restore the database to a particular point in time from the update log
 restore(Socket, PathName, TimeStamp) ->
     gen_tcp:send(Socket, [<<?RESTORE:16>>, 
 			  <<(iolist_size(PathName)):32>>,
@@ -266,28 +398,37 @@ restore(Socket, PathName, TimeStamp) ->
 			  PathName]),
     ?R_SUCCESS.
 
-%% Set the replication master of a remote database server
+%% @spec restore(Socket::port(), PathName::iolist(), TimeStamp::integer) -> ok | {error, Reason::term()}
+%%
+%% @doc Set the replication master of a remote database server
 setmst(Socket, HostName, Port) when is_integer(Port) ->
     gen_tcp:send(Socket, [<<?SETMST:16>>, 
 			  <<(iolist_size(HostName)):32>>, 
 			  <<Port:32>>, HostName]),
     ?R_SUCCESS.
 
+%% @spec misc(Socket::port(),
+%%            Func::iolist(),
+%%            Args::arglist()) -> [binary()]
+%% @type arglist = [iolist()]
+%%
+%% @doc
 %% Tyrant misc() call that writes to the update logs
+%% All database types support putlist, outlist, and getlist.
+%%    putlist -> store records, Args is list of sequential keys and values, returns []
+%%    outlist -> remove records, Args is list of keys, returns []
+%%    getlist -> retrieve records, args is list of keys, returns list of values
+%% Table database supports setindex, search, and genuid.
+%%    setindex -> set the column index, Arg is name of col and type of col data, returns success val
+%%    search -> run a search on the columns, returns list of values
+%%    genuid -> generate unique ID number, returns integer
+%% @end
 misc(Socket, Func, Args) when length(Args) > 0 ->
-    %% All database types support putlist, outlist, and getlist.
-    %%    putlist -> store records, Args is list of sequential keys and values, returns []
-    %%    outlist -> remove records, Args is list of keys, returns []
-    %%    getlist -> retrieve records, args is list of keys, returns list of values
-    %% Table database supports setindex, search, and genuid.
-    %%    setindex -> set the column index, Arg is name of col and type of col data, returns success val
-    %%    search -> run a search on the columns, returns list of values
-    %%    genuid -> generate unique ID number, returns integer
     gen_tcp:send(Socket, [<<?MISC:16>>, 
 			  <<(iolist_size(Func)):32>>, <<0:32>>, 
 			  <<(length(Args)):32>>, 
 			  Func,
-			  [[<<(iolist_size(Arg)):32>>, Arg] || Arg <- Args ]
+			  misc_arg_encode(Args)
 			 ]),
     tyrant_response(Socket, fun recv_count_2tuple/2);
 misc(Socket, Func, _Args) ->
@@ -297,14 +438,32 @@ misc(Socket, Func, _Args) ->
 			  Func]),
     tyrant_response(Socket, fun recv_count_2tuple/2).
 
+%% Encoding helper for misc() that tries to keep integers in the
+%% proper form for the remote database.
+misc_arg_encode(ArgList) ->
+    misc_arg_encode(ArgList, []).
 
-%% Tyrant misc() call that does not write to the update logs
+misc_arg_encode([], ArgList) ->
+    lists:reverse(ArgList);
+misc_arg_encode([K, V | Tail], ArgList) when is_integer(V), V < 4294967296 ->
+    ArgPair = [[<<(iolist_size(K)):32>>, K] | [[<<4:32>>, <<V:32>>]]],
+    misc_arg_encode(Tail, [ArgPair | ArgList]);
+misc_arg_encode([K, V | Tail], ArgList) ->
+    ArgPair =  [[<<(iolist_size(K)):32>>, K] | [[<<(iolist_size(V)):32>>, V]]],
+    misc_arg_encode(Tail, [ArgPair | ArgList]).
+
+%% @spec misc(Socket::port(),
+%%            Func::iolist(),
+%%            Args::arglist()) -> [binary()]
+%% @type arglist = [iolist()]
+%%
+%% @doc Tyrant misc() call that does not write to the update logs
 misc_no_update(Socket, Func, Args) when length(Args) > 0 ->
     gen_tcp:send(Socket, [<<?MISC:16>>, 
 			  <<(iolist_size(Func)):32>>, <<1:32>>, 
 			  <<(length(Args)):32>>,
 			  Func,
-			  [[<<(iolist_size(Arg)):32>>, Arg] || Arg <- Args ]
+			  misc_arg_encode(Args)
 			 ]),
     tyrant_response(Socket, fun recv_count_2tuple/2);
 misc_no_update(Socket, Func, _Args) ->
@@ -314,8 +473,14 @@ misc_no_update(Socket, Func, _Args) ->
 			  Func]),
     tyrant_response(Socket, fun recv_count_2tuple/2).
 
-%% Call a a function of the Tyrant script language extensions.
-ext(Socket, Func, Opts, Key, Value) when is_binary(Key), is_binary(Value) ->
+%% @spec ext(Socket::port(),
+%%            Func::iolist(),
+%%            Opts::proplist(),
+%%            Key::iolist(),
+%%            Value::iolist()) -> ok | {error, Reason::term()}
+%%
+%% @doc Call a function defined by the Tyrant script language extensions.
+ext(Socket, Func, Opts, Key, Value) ->
     %% TODO: Opts needs to be parsed.  Probably as a proplist [record_lock, global_lock, neither...]
     gen_tcp:send(Socket, [<<?EXT:16>>, <<(iolist_size(Func)):32>>, <<Opts:32>>, 
 			  <<(iolist_size(Key)):32>>, <<(iolist_size(Value)):32>>, 
@@ -344,8 +509,8 @@ tyrant_response(Socket, ResponseHandler) ->
 recv_success(_Socket, {tcp, _, <<0:8>>}) -> 
     ok.
  
-%% receive 8-bit success flag + 32-bit int
-recv_size(_Socket, {tcp, _, <<0:8, ValSize:32>>}) -> 
+%% receive 8-bit success flag + 32-bit little-endian int
+recv_size(_Socket, {tcp, _, <<0:8, ValSize:32/little>>}) -> 
     ValSize.
  
 %% receive 8-bit success flag + 64-bit int
@@ -407,8 +572,9 @@ recv_until(Socket, Bin, ReqLength) when byte_size(Bin) < ReqLength ->
         {tcp_closed, Socket} -> 
 	    {error, conn_closed};
 	{error, closed} ->
-	    conn_closed
-    after ?TIMEOUT -> timeout
+	    {error, conn_closed}
+    after ?TIMEOUT -> 
+	    {error, timeout}
     end;    
 recv_until(_Socket, Bin, ReqLength) when byte_size(Bin) =:= ReqLength ->
     {Bin, <<>>};
