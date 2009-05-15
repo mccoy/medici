@@ -68,10 +68,32 @@
 %% Some function patterns that are used frequently
 -define(TT(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
 
+%% Some standard types for edoc
+%%
+%% @type key() = iolist()
+%% @type value() = iolist()
+%% @type value_or_num() == iolist() | integer() | float()
+%% @type keylist() = [key()]
+%% @type error() = {error, term()}
+
 %% The Tokyo Tyrant access functions
+
+%% @spec connect() -> {ok, port()} | error()
+%%
+%% @doc 
+%% Establish a connection to the tyrant service.
+%% @end
 connect() ->
     PrincipeMod:connect().
 
+%% @spec connect(ConnectProps::proplist()) -> {ok, port()} | error()
+%%
+%% @doc 
+%% Establish a connection to the tyrant service using properties in the
+%% ConnectProps proplist to determine the hostname, port number and tcp
+%% socket options for the connection.  Any missing parameters are filled
+%% in using the module defaults.
+%% @end
 connect(ConnectProps) ->
     PrincipeMod:connect(ConnectProps).
 
@@ -113,42 +135,77 @@ connect(ConnectProps) ->
 %%     [].
 
 %%====================================================================
-%%  Standard tyrant functions
+%%  Standard tyrant functions (straight pass-through to principe.erl)
 %%====================================================================
 
-%% Add an integer value to the existing value of a key, value is added
-%% column named "_num", which is created if it does not exist.
+%% @spec addint(Socket::port(),
+%%              Key::key(),
+%%              Int::integer()) -> integer() | error()
+%%
+%% @doc Add an integer value to the _num column of a given a key.  The
+%% _num column will be created if it does not already exist.
+%% @end
 addint(Socket, Key, Int) ->
     PrincipeMod:addint(Socket, Key, Int).
 
-%% Add a float value to the existing value of a key, value is added
-%% column named "_num", which is created if it does not exist.
+%% @spec adddouble(Socket::port(),
+%%                 Key::key(),
+%%                 Double::float()) -> {Integral::integer(), Fractional::integer()} | error()
+%%
+%% @doc Add an float value to the _num column of a given a key.  The
+%% _num column will be created if it does not already exist.
+%% @end
 adddouble(Socket, Key, Double) ->
-    PrincipeMod:adddouble(Socket, Key, Double).    
+    PrincipeMod:adddouble(Socket, Key, Double).
+
+%% @spec adddouble(Socket::port(),
+%%                 Key::key(),
+%%                 Integral::integer(),
+%%                 Fractional::integer()) -> {Integral::integer(), Fractional::integer()} | error()
+%%
+%% @doc The raw adddouble function for those who need a bit more control on float adds.
 adddouble(Socket, Key, Integral, Fractional) ->
     PrincipeMod:adddouble(Socket, Key, Integral, Fractional).    
 
-%% Start iteration protocol
+%% @spec iterinit(Socket::port()) -> ok | error()
+%%
+%% @doc Start iteration protocol.  WARNING: The tyrant iteration protocol has no
+%% concurrency controls whatsoever, so if multiple clients try to do iteration
+%% they will stomp all over each other!
+%% @end
 iterinit(Socket) ->
     PrincipeMod:iterinit(Socket).
 
-%% Get the next key/value pair in the iteration protocol
+%% @spec iternext(Socket::port()) -> {Key::binary(), Value::binary()} | error()
+%%
+%% @doc Get the next key/value pair in the iteration protocol.
 iternext(Socket) ->
     PrincipeMod:iternext(Socket).
 
-%% Return a number of records that match a given prefix
+%% @spec fwmkeys(Socket::port(),
+%%               Prefix::iolist(),
+%%               MaxKeys::integer()) -> [Key()::binary()]
+%%
+%% @doc Return a number of keys that match a given prefix.
 fwmkeys(Socket, Prefix, MaxKeys) ->
     PrincipeMod:fwmkeys(Socket, Prefix, MaxKeys).
 
-%% Get the size of the value associated with a given key.
+%% @spec vsiz(Socket::port(),
+%%            Key::key()) -> integer()
+%%
+%% Get the size of the value for a given key.
 vsiz(Socket, Key) ->
     PrincipeMod:vsiz(Socket, Key).
 
-%% Call sync() on the remote database
+%% @spec sync(Socket::port()) -> ok | error()
+%%
+%% @doc Call sync() on the remote database.
 sync(Socket) ->
     PrincipeMod:sync(Socket).
 
-%% Remove all records from the remote database
+%% @spec vanish(Socket::port()) -> ok | error()
+%%
+%% @doc Remove all records from the remote database.
 vanish(Socket) ->
     PrincipeMod:vanish(Socket).
 
@@ -156,23 +213,38 @@ vanish(Socket) ->
 rnum(Socket) ->
     PrincipeMod:rnum(Socket).
 
-%% Get the size in bytes of the remote database
+%% @spec size(Socket::port()) -> integer() | error()
+%%
+%% @doc Get the size in bytes of the remote database.
 size(Socket) ->
     PrincipeMod:size(Socket).
 
-%% Get the status string of a remote database
+%% @spec stat(Socket::port()) -> proplist() | error()
+%%
+%% @doc Get the status string of a remote database.
 stat(Socket) ->
     PrincipeMod:stat(Socket).
 
-%% Make a copy of the database file of the remote database
+%% @spec copy(Socket::port(), 
+%%            iolist()) -> ok | error()
+%%
+%% @doc Make a copy of the database file of the remote database.
 copy(Socket, PathName) ->
     PrincipeMod:copy(Socket, PathName).
 
-%% Restore the database to a particular point in time from the update log
+%% @spec restore(Socket::port(), 
+%%               PathName::iolist(), 
+%%               TimeStamp::integer) -> ok | error()
+%%
+%% @doc Restore the database to a particular point in time from the update log.
 restore(Socket, PathName, TimeStamp) ->
     PrincipeMod:restore(Socket, PathName, TimeStamp).
 
-%% Set the replication master of a remote database server
+%% @spec setmst(Socket::port(), 
+%%              HostName::iolist(), 
+%%              Port::integer) -> ok | error()
+%%
+%% @doc Set the replication master of a remote database server.
 setmst(Socket, HostName, Port) ->
     PrincipeMod:setmst(Socket, HostName, Port).
 
@@ -180,24 +252,57 @@ setmst(Socket, HostName, Port) ->
 %%  Table functions
 %%====================================================================
 
-%%% Store a value for a given key.
+%% @spec put(Socket::port(), 
+%%           Key::key(), 
+%%           Cols::proplist()) -> [] | error()
+%%
+%% @doc
+%% Call the Tyrant server to store a new set of column values for the given key.
+%% @end
 put(Socket, Key, Cols) ->
     Data = encode_table(Cols),
     ?TT(<<"put">>, [Key | Data]).
 
-%% Store a new record into the database
+%% @spec putkeep(Socket::port(), 
+%%               Key::key(), 
+%%               Cols::proplist()) -> [] | error()
+%%
+%% @doc 
+%% Call the Tyrant server to add a set of column values for a given key.  Will 
+%% return an error if Key is already in the remote database.
+%% @end
 putkeep(Socket, Key, Cols) ->
     Data = encode_table(Cols),
     ?TT(<<"putkeep">>, [Key | Data]).
 
-%% Concatenate a set of column values to the existing value of Key.
+%% @spec putcat(Socket::port(), 
+%%              Key::key(), 
+%%              Cols::proplist()) -> [] | error()
+%%
+%% @doc 
+%% Concatenate a set of column values to the existing value of Key (or
+%% create a new entry for Key with the given column values if Key is not
+%% in the remote database.)  If any columns in Cols already have values
+%% for the given key then the entries provided in the Cols parameter for
+%% those specific columns will be ignored by the remote database. Use the
+%% update() function to overwrite existing column values.
+%% @end
 putcat(Socket, Key, Cols) ->
     Data = encode_table(Cols),
     ?TT(<<"putcat">>, [Key | Data]).
 
-%% Update a table entry by merging Cols into existing data for given key.
+%% @spec update(Socket::port(), 
+%%              Key::key(), 
+%%              Cols::proplist()) -> [] | error()
 %%
-%% TODO: better way would be to use a lua server script to perform the merge
+%% @doc 
+%% Update a table entry by merging Cols into existing data for given key. The
+%% end result of this function should be to create a new entry for Key whose
+%% column values are the new data from the Cols parameter as well as any previous
+%% columns for Key that were not in the Cols proplist.
+%% @end
+%%
+%% TODO: better way would be to use a lua server script to perform the merge?
 update(Socket, Key, Cols) ->
     case PrincipeMod:misc(Socket, <<"get">>, [Key]) of
 	{error, _Reason} ->
@@ -215,25 +320,51 @@ update(Socket, Key, Cols) ->
     Data = encode_table(UpdatedProps),
     ?TT(<<"put">>, [Key | Data]).
 
-%% Remove a key & value from the table.
+%% @spec out(Socket::port(), 
+%%           Key::key()) -> ok | error()
+%%
+%% @doc 
+%% Remove a key from the remote database.  Will return an error if Key is
+%% not in the database.
+%% @end
 out(Socket, Key) ->
     ?TT(<<"out">>, [Key]).
 
-%% Get the value for a given key.
+%% @spec get(Socket::port(), 
+%%           Key::key()) -> proplist() | error()
+%%
+%% @doc Get the value for a given key. Table data is returned in a proplist of
+%% {ColumnName, ColumnValue} tuples.
+%% @end
 get(Socket, Key) ->
     ?TT(<<"get">>, [Key]).
 
+%% @spec mget(Socket::port(),
+%%            KeyList::keylist()) -> [{Key::binary(), Value::proplist()}] | error()
+%%
+%% @doc Get the values for a list of keys.
 mget(Socket, KeyList) ->
     ?TT(<<"getlist">>, [KeyList]).
 
+%% @spec setindex(Socket::port(),
+%%                primary | ColName::iolist(),
+%%                lexical | decimal | void) -> [] | error()
+%%
+%% @doc
 %% Tell the tyrant server to build an index for a column.  The ColName
-%% should be either the atom "primary" or a binary, Type should be an atom.
+%% should be either the atom "primary" (to index on the primary key) or a 
+%% iolist() that names the column to be indexed. Type should be an atom
+%% selected from decimal (index column as decimal data), lexical (index as
+%% character/string data) or void (remove an existing index for ColName).
+%% @end
 setindex(Socket, primary, Type) when is_atom(Type) ->
     ?TT(<<"setindex">>, [?NULL, setindex_request_val(Type)]);
 setindex(Socket, ColName, Type) when is_atom(Type) ->
     ?TT(<<"setindex">>, [ColName, setindex_request_val(Type)]).
 
-%% Generate a unique id within the set of primary keys
+%% @spec genuid(Socket::port()) -> [] | error()
+%%
+%% @doc Generate a unique id within the set of primary keys
 genuid(Socket) ->
     ?TT(<<"genuid">>, []).
 

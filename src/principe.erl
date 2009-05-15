@@ -341,7 +341,7 @@ getfloat(Socket, Key) ->
 %% @spec mget(Socket::port(),
 %%            KeyList::keylist()) -> [{Key::binary(), Value::binary()}] | error()
 %%
-%% Get the values for a list of keys
+%% @doc Get the values for a list of keys
 mget(Socket, KeyList) when is_list(KeyList) ->
     gen_tcp:send(Socket, [<<?MGET:16>>, 
 			  <<(length(KeyList)):32>>, 
@@ -352,7 +352,7 @@ mget(Socket, KeyList) when is_list(KeyList) ->
 %% @spec vsiz(Socket::port(),
 %%            Key::key()) -> integer()
 %%
-%% Get the size of the value for a given key
+%% Get the size of the value for a given key.
 vsiz(Socket, Key) ->
     ?T1(?VSIZ),
     ?R_INT32.
@@ -362,6 +362,7 @@ vsiz(Socket, Key) ->
 %% @doc Start iteration protocol.  WARNING: The tyrant iteration protocol has no
 %% concurrency controls whatsoever, so if multiple clients try to do iteration
 %% they will stomp all over each other!
+%% @end
 iterinit(Socket) ->
     ?T0(?ITERINIT),
     ?R_SUCCESS.
@@ -376,7 +377,8 @@ iternext(Socket) ->
 %% @spec fwmkeys(Socket::port(),
 %%               Prefix::iolist(),
 %%               MaxKeys::integer()) -> [Key()::binary()]
-%% Return a number of records that match a given prefix
+%%
+%% @doc Return a number of keys that match a given prefix.
 fwmkeys(Socket, Prefix, MaxKeys) when is_integer(MaxKeys) ->
     gen_tcp:send(Socket, [<<?FWMKEYS:16>>, 
 			  <<(iolist_size(Prefix)):32>>, 
@@ -454,28 +456,28 @@ sync(Socket) ->
 
 %% @spec vanish(Socket::port()) -> ok | error()
 %%
-%% @doc Remove all records from the remote database
+%% @doc Remove all records from the remote database.
 vanish(Socket) ->
     ?T0(?VANISH),
     ?R_SUCCESS.
 
 %% @spec rnum(Socket::port()) -> integer() | error()
 %%
-%% @doc Get the number of records in the remote database
+%% @doc Get the number of records in the remote database.
 rnum(Socket) ->
     ?T0(?RNUM),
     ?R_INT64.
 
 %% @spec size(Socket::port()) -> integer() | error()
 %%
-%% @doc Get the size in bytes of the remote database
+%% @doc Get the size in bytes of the remote database.
 size(Socket) ->
     ?T0(?SIZE),
     ?R_INT64.
 
 %% @spec stat(Socket::port()) -> proplist() | error()
 %%
-%% @doc Get the status string of a remote database
+%% @doc Get the status string of a remote database.
 stat(Socket) ->
     ?T0(?STAT),
     StatString = ?R_SIZE_DATA,
@@ -497,7 +499,7 @@ stat_to_proplist([H1, H2 | T], Acc) ->
 %% @spec copy(Socket::port(), 
 %%            iolist()) -> ok | error()
 %%
-%% @doc Make a copy of the database file of the remote database
+%% @doc Make a copy of the database file of the remote database.
 copy(Socket, Key) when is_binary(Key) ->
     ?T1(?COPY), % Using 'Key' so that the macro binds properly...
     ?R_SUCCESS.
@@ -506,7 +508,7 @@ copy(Socket, Key) when is_binary(Key) ->
 %%               PathName::iolist(), 
 %%               TimeStamp::integer) -> ok | error()
 %%
-%% @doc Restore the database to a particular point in time from the update log
+%% @doc Restore the database to a particular point in time from the update log.
 restore(Socket, PathName, TimeStamp) ->
     gen_tcp:send(Socket, [<<?RESTORE:16>>, 
 			  <<(iolist_size(PathName)):32>>,
@@ -514,11 +516,11 @@ restore(Socket, PathName, TimeStamp) ->
 			  PathName]),
     ?R_SUCCESS.
 
-%% @spec restore(Socket::port(), 
-%%               PathName::iolist(), 
-%%               TimeStamp::integer) -> ok | error()
+%% @spec setmst(Socket::port(), 
+%%              HostName::iolist(), 
+%%              Port::integer) -> ok | error()
 %%
-%% @doc Set the replication master of a remote database server
+%% @doc Set the replication master of a remote database server.
 setmst(Socket, HostName, Port) when is_integer(Port) ->
     gen_tcp:send(Socket, [<<?SETMST:16>>, 
 			  <<(iolist_size(HostName)):32>>, 
