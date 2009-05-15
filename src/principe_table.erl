@@ -1,41 +1,32 @@
-%% Copyright 2009, Jim McCoy <mccoy@mad-scientist.com>
-%%
-%% Permission is hereby granted, free of charge, to any person
-%% obtaining a copy of this software and associated documentation
-%% files (the "Software"), to deal in the Software without
-%% restriction, including without limitation the rights to use,
-%% copy, modify, merge, publish, distribute, sublicense, and/or sell
-%% copies of the Software, and to permit persons to whom the
-%% Software is furnished to do so, subject to the following
-%% conditions:
-%%
-%% The above copyright notice and this permission notice shall be
-%% included in all copies or substantial portions of the Software.
-%%
-%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-%% EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-%% OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-%% NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-%% HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-%% WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-%% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-%% OTHER DEALINGS IN THE SOFTWARE.
- 
 %%%-------------------------------------------------------------------
-%%% File:      principe_table.erl
+%%% File:      principe.erl
 %%% @author    Jim McCoy <mccoy@mad-scientist.com>
-%%% @copyright 2009 Jim McCoy
-%%% @doc ttserver binary interface for tables
+%%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
+%%%
+%%% @doc
+%%% An extension to the principe module that handles tables.  See the
+%%% principe module docs for a note about Tyrant and server byte-order
+%%% issues.  To deal with that particular issue, this module takes as a
+%%% parameter a parameterized version of the principe module that has been
+%%% set with the proper server endianness (this feels distressingly OO, but
+%%% given the inter-module refs I can't see a way around it...)  To get a
+%%% properly setup version of this module you would do something like the
+%%% following:
+%%%
+%%%    G = PrincipeMod:new(little).
+%%%    T = principe_table:new(G).
+%%%
+%%% @end
 %%%-------------------------------------------------------------------
 
--module(principe_table).
--compile([binary_comprehension]).
--export([connect/0, connect/1, put/3, putkeep/3, putcat/3, out/2, 
-	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
-	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/4,
-	 setmst/3, setindex/3, query_set_limit/3, query_set_limit/2,
-	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
-	 searchcount/2, searchout/2, encode_table/1, decode_table/1]).
+-module(principe_table,[PrincipeMod]).
+-compile([binary_comprehension, export_all]).
+%% -export([connect/0, connect/1, put/3, putkeep/3, putcat/3, update/3, out/2,
+%% 	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
+%% 	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/3, adddouble/4,
+%% 	 setmst/3, setindex/3, query_set_limit/3, query_set_limit/2,
+%% 	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
+%% 	 searchcount/2, searchout/2, encode_table/1, decode_table/1]).
 %%-export([table/1])  % Not tested yet
 
 -ifdef(TEST).
@@ -75,18 +66,18 @@
 -define(QONUMDESC, 3).
 
 %% Some function patterns that are used frequently
--define(TT(Func, Args), principe:misc(Socket, Func, Args)).
+-define(TT(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
 
 %% The Tokyo Tyrant access functions
 connect() ->
-    principe:connect().
+    PrincipeMod:connect().
 
 connect(ConnectProps) ->
-    principe:connect(ConnectProps).
+    PrincipeMod:connect(ConnectProps).
 
 %% table(Socket) ->
 %%     TF = fun() -> qlc_next(firstitem(Socket)) end,
-%%     InfoFun = fun(num_of_objects) -> principe:rnum(Socket);
+%%     InfoFun = fun(num_of_objects) -> PrincipeMod:rnum(Socket);
 %%                  (keypos) -> 1;
 %%                  (is_sorted_key) -> false;
 %%                  (is_unique_objects) -> true;
@@ -94,25 +85,25 @@ connect(ConnectProps) ->
 %%               end,
 %%     LookupFun =
 %%         fun(1, Ks) ->
-%%                 principe:mget(Socket, Ks)
+%%                 PrincipeMod:mget(Socket, Ks)
 %%         end,
 %%     qlc:table(TF, [{info_fun, InfoFun}, {lookup_fun, LookupFun},{key_equality,'=='}]).
 
 %% %% Helper functions for the qlc_next function
 %% firstitem(Socket) ->
-%%     ok = principe:iterinit(Socket),
-%%     case principe:iternext(Socket) of
+%%     ok = PrincipeMod:iterinit(Socket),
+%%     case PrincipeMod:iternext(Socket) of
 %% 	{error, _ErrCode} ->
 %% 	    none;
 %% 	Key ->
-%% 	    {Key, principe:get(Socket, Key), Socket}
+%% 	    {Key, PrincipeMod:get(Socket, Key), Socket}
 %%     end.
 %% nextitem({_K, _V, Socket}) ->
-%%     case principe:iternext(Socket) of
+%%     case PrincipeMod:iternext(Socket) of
 %% 	{error, _ErrCode} ->
 %% 	    none;
 %% 	Key ->
-%% 	    {Key, principe:get(Socket, Key), Socket}
+%% 	    {Key, PrincipeMod:get(Socket, Key), Socket}
 %%     end.
 
 %% %% The traversal function used by table/1
@@ -128,60 +119,62 @@ connect(ConnectProps) ->
 %% Add an integer value to the existing value of a key, value is added
 %% column named "_num", which is created if it does not exist.
 addint(Socket, Key, Int) ->
-    principe:addint(Socket, Key, Int).
+    PrincipeMod:addint(Socket, Key, Int).
 
 %% Add a float value to the existing value of a key, value is added
 %% column named "_num", which is created if it does not exist.
+adddouble(Socket, Key, Double) ->
+    PrincipeMod:adddouble(Socket, Key, Double).    
 adddouble(Socket, Key, Integral, Fractional) ->
-    principe:adddouble(Socket, Key, Integral, Fractional).    
+    PrincipeMod:adddouble(Socket, Key, Integral, Fractional).    
 
 %% Start iteration protocol
 iterinit(Socket) ->
-    principe:iterinit(Socket).
+    PrincipeMod:iterinit(Socket).
 
 %% Get the next key/value pair in the iteration protocol
 iternext(Socket) ->
-    principe:iternext(Socket).
+    PrincipeMod:iternext(Socket).
 
 %% Return a number of records that match a given prefix
 fwmkeys(Socket, Prefix, MaxKeys) ->
-    principe:fwmkeys(Socket, Prefix, MaxKeys).
+    PrincipeMod:fwmkeys(Socket, Prefix, MaxKeys).
 
 %% Get the size of the value associated with a given key.
 vsiz(Socket, Key) ->
-    principe:vsiz(Socket, Key).
+    PrincipeMod:vsiz(Socket, Key).
 
 %% Call sync() on the remote database
 sync(Socket) ->
-    principe:sync(Socket).
+    PrincipeMod:sync(Socket).
 
 %% Remove all records from the remote database
 vanish(Socket) ->
-    principe:vanish(Socket).
+    PrincipeMod:vanish(Socket).
 
 %% Get the number of records in the remote database
 rnum(Socket) ->
-    principe:rnum(Socket).
+    PrincipeMod:rnum(Socket).
 
 %% Get the size in bytes of the remote database
 size(Socket) ->
-    principe:size(Socket).
+    PrincipeMod:size(Socket).
 
 %% Get the status string of a remote database
 stat(Socket) ->
-    principe:stat(Socket).
+    PrincipeMod:stat(Socket).
 
 %% Make a copy of the database file of the remote database
 copy(Socket, PathName) ->
-    principe:copy(Socket, PathName).
+    PrincipeMod:copy(Socket, PathName).
 
 %% Restore the database to a particular point in time from the update log
 restore(Socket, PathName, TimeStamp) ->
-    principe:restore(Socket, PathName, TimeStamp).
+    PrincipeMod:restore(Socket, PathName, TimeStamp).
 
 %% Set the replication master of a remote database server
 setmst(Socket, HostName, Port) ->
-    principe:setmst(Socket, HostName, Port).
+    PrincipeMod:setmst(Socket, HostName, Port).
 
 %%====================================================================
 %%  Table functions
@@ -195,34 +188,54 @@ put(Socket, Key, Cols) ->
 %% Store a new record into the database
 putkeep(Socket, Key, Cols) ->
     Data = encode_table(Cols),
-    principe:misc(Socket, <<"putkeep">>, [Key | Data]).
+    ?TT(<<"putkeep">>, [Key | Data]).
 
 %% Concatenate a set of column values to the existing value of Key.
 putcat(Socket, Key, Cols) ->
     Data = encode_table(Cols),
-    principe:misc(Socket, <<"putcat">>, [Key | Data]).
+    ?TT(<<"putcat">>, [Key | Data]).
+
+%% Update a table entry by merging Cols into existing data for given key.
+%%
+%% TODO: better way would be to use a lua server script to perform the merge
+update(Socket, Key, Cols) ->
+    case PrincipeMod:misc(Socket, <<"get">>, [Key]) of
+	{error, _Reason} ->
+	    NewData = Cols;
+	ExistingData ->
+	    OldProps = decode_table(ExistingData),
+	    NewProps = lists:foldl(fun({K, V}, AccIn) when is_list(K) ->
+					   [{list_to_binary(K), V} | AccIn];
+				      ({K, V}, AccIn) when is_atom(K) ->
+					   [{list_to_binary(atom_to_list(K)), V} | AccIn];
+				      (Other, AccIn) -> [Other | AccIn]
+				   end, OldProps, Cols),
+	    UpdatedProps = [{K, proplists:get_value(K, NewProps)} || K <- proplists:get_keys(NewProps)],
+    end,
+    Data = encode_table(UpdatedProps),
+    ?TT(<<"put">>, [Key | Data]).
 
 %% Remove a key & value from the table.
 out(Socket, Key) ->
-    principe:misc(Socket, <<"out">>, [Key]).
+    ?TT(<<"out">>, [Key]).
 
 %% Get the value for a given key.
 get(Socket, Key) ->
-    principe:misc(Socket, <<"get">>, [Key]).
+    ?TT(<<"get">>, [Key]).
 
 mget(Socket, KeyList) ->
-    principe:misc(Socket, <<"getlist">>, [KeyList]).
+    ?TT(<<"getlist">>, [KeyList]).
 
 %% Tell the tyrant server to build an index for a column.  The ColName
 %% should be either the atom "primary" or a binary, Type should be an atom.
 setindex(Socket, primary, Type) when is_atom(Type) ->
-    principe:misc(Socket, <<"setindex">>, [?NULL, setindex_request_val(Type)]);
+    ?TT(<<"setindex">>, [?NULL, setindex_request_val(Type)]);
 setindex(Socket, ColName, Type) when is_atom(Type) ->
-    principe:misc(Socket, <<"setindex">>, [ColName, setindex_request_val(Type)]).
+    ?TT(<<"setindex">>, [ColName, setindex_request_val(Type)]).
 
 %% Generate a unique id within the set of primary keys
 genuid(Socket) ->
-    principe:misc(Socket, <<"genuid">>, []).
+    ?TT(<<"genuid">>, []).
 
 %% Add a condition for a query.  ExprList should be a list of one or more
 %% values where each value is either a binary, list, or integer.  Op can be
@@ -265,15 +278,15 @@ query_set_order(Query, ColName, Type) when is_atom(Type) ->
     end.
 
 %% Run a prepared query against the table and return matching keys.
-search(_Socket, TblQuery) ->
+search(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
-    principe:misc(<<"search">>, SearchQuery).
+    ?TT(<<"search">>, SearchQuery).
 
 %% Run a prepared query against the table and get the count of matching keys.
 searchcount(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
     CountQuery = [SearchQuery | <<"count">>],
-    principe:misc(Socket, <<"search">>, CountQuery).
+    ?TT(<<"search">>, CountQuery).
 
 %% %% Run a prepared query against the table and get the matching records.  Due
 %% %% to protocol restraints, the returned result cannot include columns whose
@@ -290,7 +303,7 @@ searchcount(Socket, TblQuery) ->
 searchout(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
     OutQuery = [SearchQuery | <<"out">>],
-    principe:misc(Socket, <<"search">>, OutQuery).
+    ?TT(<<"search">>, OutQuery).
 
 %% tblrescols(Socket, TblQuery) ->
 %%     void.

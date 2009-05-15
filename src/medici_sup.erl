@@ -42,20 +42,19 @@ start_link(MediciProps) ->
 %% specifications.
 %%--------------------------------------------------------------------
 init(MediciProps) ->
-    MediciClientSupervisor = {"ClientSupervisor",
-			      {'medici_client_sup', start_link, MediciProps},
-			      permanent, 
-			      infinity, 
-			      supervisor, 
-			      ["medici_client_sup"]},
-    MediciController = {"Controller",
-			{'medici_controller', start_link, MediciProps},
+    MediciController = {controller,
+			{medici_controller, start_link, MediciProps},
 			permanent,
 			2000,
 			worker,
-			["medici_controller"]},
-
-    {ok,{{one_for_all,1,10}, [MediciClientSupervisor, MediciController]}}.
+			[medici_controller]},
+    MediciConnSupervisor = {connection_supervisor,
+			      {medici_conn_sup, start_link, MediciProps},
+			      permanent, 
+			      infinity, 
+			      supervisor, 
+			      [medici_conn_sup]},
+    {ok,{{one_for_all,1,10}, [MediciController, MediciConnSupervisor]}}.
 
 %%====================================================================
 %% Internal functions

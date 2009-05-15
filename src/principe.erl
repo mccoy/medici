@@ -74,10 +74,9 @@
 -define(ADDDOUBLE, 16#C861).
 -define(EXT, 16#C868).
 -define(SYNC, 16#C870).
--define(OPTIMIZE, 16#C871).
--define(VANISH, 16#C872).
--define(COPY, 16#C873).
--define(RESTORE, 16#C874).
+-define(VANISH, 16#C871).
+-define(COPY, 16#C872).
+-define(RESTORE, 16#C873).
 -define(SETMST, 16#C878).
 -define(RNUM, 16#C880).
 -define(SIZE, 16#C881).
@@ -564,25 +563,22 @@ misc_arg_encode(ArgList) ->
 
 misc_arg_encode([], ArgList) ->
     lists:reverse(ArgList);
-misc_arg_encode([K, V | Tail], ArgList) when is_integer(V), V < 4294967296 ->
+misc_arg_encode([Arg | Tail], ArgList) when is_integer(Arg), Arg < 4294967296 ->
     case ServerEndianness of
 	big ->
-	    ArgPair = [[<<(iolist_size(K)):32>>, K] | [[<<4:32>>, <<V:32>>]]];
+	    misc_arg_encode(Tail, [[<<4:32>>, <<Arg:32>>] | ArgList]);
 	little ->
-	    ArgPair = [[<<(iolist_size(K)):32>>, K] | [[<<4:32>>, <<V:32/little>>]]]
-    end,
-    misc_arg_encode(Tail, [ArgPair | ArgList]);
-misc_arg_encode([K, V | Tail], ArgList) when is_float(V) ->
+	    misc_arg_encode(Tail, [[<<4:32>>, <<Arg:32/little>>] | ArgList])
+    end;
+misc_arg_encode([Arg | Tail], ArgList) when is_float(Arg) ->
     case ServerEndianness of
 	big ->
-	    ArgPair = [[<<(iolist_size(K)):32>>, K] | [[<<8:32>>, <<V:64/float>>]]];
+	    misc_arg_encode(Tail, [[<<8:32>>, <<Arg:64/float>>] | ArgList]);
 	little ->
-	    ArgPair = [[<<(iolist_size(K)):32>>, K] | [[<<8:32>>, <<V:64/float-little>>]]]
-    end,
-    misc_arg_encode(Tail, [ArgPair | ArgList]);
-misc_arg_encode([K, V | Tail], ArgList) ->
-    ArgPair =  [[<<(iolist_size(K)):32>>, K] | [[<<(iolist_size(V)):32>>, V]]],
-    misc_arg_encode(Tail, [ArgPair | ArgList]).
+	    misc_arg_encode(Tail, [[<<8:32>>, <<Arg:64/float-little>>] | ArgList])
+    end;
+misc_arg_encode([Arg | Tail], ArgList) ->
+    misc_arg_encode(Tail, [[<<(iolist_size(Arg)):32>>, Arg] | ArgList]).
 
 %% @spec misc(Socket::port(),
 %%            Func::iolist(),

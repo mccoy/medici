@@ -16,7 +16,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--define(DEFAULT_NAME, ttserver).
+-define(DEFAULT_NAME, medici).
 
 -record(state, {clients=[]}).
 
@@ -58,7 +58,10 @@ init(_ClientProps) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) when length(State#state.clients) =:= 0 ->
+    error_logger:error_msg("Request received by controller but no clients available~n"),
     {reply, {error, no_connection_to_server}, State};
+handle_call({CallFunc}, From, State) ->
+    dispatch_request({From, CallFunc}, State);
 handle_call({CallFunc, Arg1}, From, State) ->
     dispatch_request({From, CallFunc, Arg1}, State);
 handle_call({CallFunc, Arg1, Arg2}, From, State) ->
@@ -67,7 +70,8 @@ handle_call({CallFunc, Arg1, Arg2, Arg3}, From, State) ->
     dispatch_request({From, CallFunc, Arg1, Arg2, Arg3}, State);
 handle_call({CallFunc, Arg1, Arg2, Arg3, Arg4}, From, State) ->
     dispatch_request({From, CallFunc, Arg1, Arg2, Arg3, Arg4}, State);
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+    error_logger:error_msg("Unknown request received by controller:~n~p~n", [Request]),
     {reply, {error, invalid_request}, State}.
 
 %%--------------------------------------------------------------------

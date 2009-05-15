@@ -50,16 +50,16 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init(ClientProps) ->
-    {ok, Sock} = principe:connect(ClientProps),
+    TmpMod = principe:new(bad_val),
+    {ok, Sock} = TmpMod:connect(ClientProps),
     case get_db_type(Sock) of
-	{ok, big, table} ->
-	    DbType = principe_table_big;
-	{ok, little, table} ->
-	    DbType = principe_table_little;
+	{ok, Endian, table} ->
+	    Principe = principe:new(Endian),
+	    DbType = principe_table(Principe);
 	{ok, big, _} ->
-	    DbType = principe_big;
+	    DbType = principe:new(big);
 	{ok, little, _} ->
-	    DbType = principe_little;
+	    DbType = principe:new(little);
 	{error, _} ->
 	    DbType = nil,   % eliminate a spurious compiler warning...
 	    {stop, connect_failure}
@@ -197,6 +197,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Query the remote end of the socket to get the remote database type
 get_db_type(Socket) when is_port(Socket) ->
+    TmpMod = principe:new(bad_val),
     StatInfo = principe:stat(Socket),
     case StatInfo of
 	{error, Reason} ->

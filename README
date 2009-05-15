@@ -1,22 +1,28 @@
-This is a thin Erlang wrapper around the Tokyo Tyrant TCP/IP API.
+Medici is a Tokyo Tyrant interface for Erlang.  It is composed of two
+basic parts, principe and the medici server.
 
-I have tried to keep this as simple as possible for the moment.
+Principe is a thin Erlang wrapper around the Tokyo Tyrant TCP/IP API.
+It suports hash, b-tree, and table databases (the latter via the
+principe_table module). Principe does not do any connection handling
+beyond providing a simple connect() function, it just makes requests
+to a tyrant server and returns the results.
 
-The principe module does hash, and b-tree TT databases, the
-principe_table module handles table database operations.
+Medici is an Erlang app that provides a supervised pool of client
+connections to the tyrant service (via principe) and a client controller
+that provides an fairly robust api for other processes to use when
+accessing the tyrant service. 
 
-There is no connection pooling or connection handling.  If you want it, 
-do it yourself.  The app developer will have a better idea of what they
-might need or want.  In fact, it does not really do any connection bits
-at all (although it does provide a helper function to set up the connection
-for you) and you are required to pass in the socket to the Tyrant server
-for every function.
+---------
+Keys and Values
 
-Keys must be iolists, values can be anything for principe and need to
-be proplists for principe_table.
+All keys for database operations should be iolists.  Values can be
+iolists, integers, or floats.  For the table interface the columns
+are accessed via {column_name, column_value} proplists, where the
+column name is an iolist and the column value is an iolist, integer,
+or float.
 
+
+---------
 Mad props to Bob Ippolito for the pytyrant package that I used as a
 template and to Harish Mallipeddi whose tora package provided the
-response handling functions I am using.  If you are looking for a
-Tyrant interface that is more of a traditional DB access system then
-give tora a try at http://github.com/mallipeddi/tora
+response handling functions I am using with a few minor tweaks.

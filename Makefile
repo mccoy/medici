@@ -8,6 +8,7 @@ docs:
 
 compile: clean
 	erlc -o ebin/ src/*.erl
+	cp src/*.app ebin/
 
 clean:
 	rm -rfv ebin/
