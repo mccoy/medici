@@ -66,7 +66,8 @@
 -define(QONUMDESC, 3).
 
 %% Some function patterns that are used frequently
--define(TT(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
+-define(TSimple(Func, Args), case PrincipeMod:misc(Socket, Func, Args) of [] -> ok; Error -> Error end).
+-define(TRaw(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
 
 %% Some standard types for edoc
 %%
@@ -74,9 +75,17 @@
 %% @type value() = iolist()
 %% @type value_or_num() == iolist() | integer() | float()
 %% @type keylist() = [key()]
+%% @type coldata() = [{key(), value_or_num()}]
 %% @type error() = {error, term()}
+%% @type index_type() = lexical | decimal | void
+%% @type query_opcode() = str_eq | str_inc| str_begin | str_end | str_and | str_or | str_regex | num_eq | num_gt | num_ge | num_lt | num_le | num_between | num_in_list
+%% @type query_op = query_opcode() | {no, query_opcode()} | {query_opcode{}, no_index} | {no, query_opcode(), no_index}
+%% @type query_expr = [binary() | string() | integer()]
+%% @type order_type = str_ascending | str_descending | num_ascending | num_descending
 
+%%====================================================================
 %% The Tokyo Tyrant access functions
+%%====================================================================
 
 %% @spec connect() -> {ok, port()} | error()
 %%
@@ -254,18 +263,18 @@ setmst(Socket, HostName, Port) ->
 
 %% @spec put(Socket::port(), 
 %%           Key::key(), 
-%%           Cols::proplist()) -> [] | error()
+%%           Cols::coldata()) -> [] | error()
 %%
 %% @doc
 %% Call the Tyrant server to store a new set of column values for the given key.
 %% @end
 put(Socket, Key, Cols) ->
     Data = encode_table(Cols),
-    ?TT(<<"put">>, [Key | Data]).
+    ?TSimple(<<"put">>, [Key | Data]).
 
 %% @spec putkeep(Socket::port(), 
 %%               Key::key(), 
-%%               Cols::proplist()) -> [] | error()
+%%               Cols::coldata()) -> [] | error()
 %%
 %% @doc 
 %% Call the Tyrant server to add a set of column values for a given key.  Will 
@@ -273,11 +282,11 @@ put(Socket, Key, Cols) ->
 %% @end
 putkeep(Socket, Key, Cols) ->
     Data = encode_table(Cols),
-    ?TT(<<"putkeep">>, [Key | Data]).
+    ?TSimple(<<"putkeep">>, [Key | Data]).
 
 %% @spec putcat(Socket::port(), 
 %%              Key::key(), 
-%%              Cols::proplist()) -> [] | error()
+%%              Cols::coldata()) -> [] | error()
 %%
 %% @doc 
 %% Concatenate a set of column values to the existing value of Key (or
@@ -289,11 +298,11 @@ putkeep(Socket, Key, Cols) ->
 %% @end
 putcat(Socket, Key, Cols) ->
     Data = encode_table(Cols),
-    ?TT(<<"putcat">>, [Key | Data]).
+    ?TSimple(<<"putcat">>, [Key | Data]).
 
 %% @spec update(Socket::port(), 
 %%              Key::key(), 
-%%              Cols::proplist()) -> [] | error()
+%%              Cols::coldata()) -> [] | error()
 %%
 %% @doc 
 %% Update a table entry by merging Cols into existing data for given key. The
@@ -306,7 +315,7 @@ putcat(Socket, Key, Cols) ->
 update(Socket, Key, Cols) ->
     case PrincipeMod:misc(Socket, <<"get">>, [Key]) of
 	{error, _Reason} ->
-	    NewData = Cols;
+	    UpdatedProps = Cols;
 	ExistingData ->
 	    OldProps = decode_table(ExistingData),
 	    NewProps = lists:foldl(fun({K, V}, AccIn) when is_list(K) ->
@@ -315,10 +324,10 @@ update(Socket, Key, Cols) ->
 					   [{list_to_binary(atom_to_list(K)), V} | AccIn];
 				      (Other, AccIn) -> [Other | AccIn]
 				   end, OldProps, Cols),
-	    UpdatedProps = [{K, proplists:get_value(K, NewProps)} || K <- proplists:get_keys(NewProps)],
+	    UpdatedProps = [{K, proplists:get_value(K, NewProps)} || K <- proplists:get_keys(NewProps)]
     end,
     Data = encode_table(UpdatedProps),
-    ?TT(<<"put">>, [Key | Data]).
+    ?TSimple(<<"put">>, [Key | Data]).
 
 %% @spec out(Socket::port(), 
 %%           Key::key()) -> ok | error()
@@ -328,7 +337,7 @@ update(Socket, Key, Cols) ->
 %% not in the database.
 %% @end
 out(Socket, Key) ->
-    ?TT(<<"out">>, [Key]).
+    ?TSimple(<<"out">>, [Key]).
 
 %% @spec get(Socket::port(), 
 %%           Key::key()) -> proplist() | error()
@@ -337,18 +346,18 @@ out(Socket, Key) ->
 %% {ColumnName, ColumnValue} tuples.
 %% @end
 get(Socket, Key) ->
-    ?TT(<<"get">>, [Key]).
+    ?TRaw(<<"get">>, [Key]).
 
 %% @spec mget(Socket::port(),
 %%            KeyList::keylist()) -> [{Key::binary(), Value::proplist()}] | error()
 %%
 %% @doc Get the values for a list of keys.
 mget(Socket, KeyList) ->
-    ?TT(<<"getlist">>, [KeyList]).
+    ?TRaw(<<"getlist">>, [KeyList]).
 
 %% @spec setindex(Socket::port(),
 %%                primary | ColName::iolist(),
-%%                lexical | decimal | void) -> [] | error()
+%%                Type::index_type()) -> [] | error()
 %%
 %% @doc
 %% Tell the tyrant server to build an index for a column.  The ColName
@@ -358,39 +367,65 @@ mget(Socket, KeyList) ->
 %% character/string data) or void (remove an existing index for ColName).
 %% @end
 setindex(Socket, primary, Type) when is_atom(Type) ->
-    ?TT(<<"setindex">>, [?NULL, setindex_request_val(Type)]);
+    ?TSimple(<<"setindex">>, [?NULL, setindex_request_val(Type)]);
 setindex(Socket, ColName, Type) when is_atom(Type) ->
-    ?TT(<<"setindex">>, [ColName, setindex_request_val(Type)]).
+    ?TSimple(<<"setindex">>, [ColName, setindex_request_val(Type)]).
 
-%% @spec genuid(Socket::port()) -> [] | error()
+%% @spec genuid(Socket::port()) -> binary() | error()
 %%
 %% @doc Generate a unique id within the set of primary keys
 genuid(Socket) ->
-    ?TT(<<"genuid">>, []).
+    case ?TRaw(<<"genuid">>, []) of
+	[NewId] ->
+	    NewId;
+	Error ->
+	    Error
+    end.
 
+%% @spec query_add_condition(Query::proplist(),
+%%                           ColName::iolist(),
+%%                           Op::query_op(),
+%%                           ExprList::query_expr()) -> proplist()
+%%
+%% @doc
 %% Add a condition for a query.  ExprList should be a list of one or more
-%% values where each value is either a binary, list, or integer.  Op can be
+%% values where each value is either a binary, string, or integer.  Op can be
 %% either an atom or a tuple of atoms describing the operation.  If the first
 %% atom in an Op tuple is "no" then the condition is a negation query and if
 %% the last atom is no_index an existing index on the remote database server will
 %% be bypassed.
+%% @end
 query_add_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
     [{add_cond, {ColName, <<(add_condition_op_val(Op)):32>>, convert_query_exprlist(ExprList)}} | Query].
 
-%% Set a limit on the number of returned values
+%% @spec query_set_limit(Query::proplist(),
+%%                       Max::integer(),
+%%                       Skip::integer()) -> proplist()
+%%
+%% @doc Set a limit on the number of returned values for Query, skip the first Skip records.
 query_set_limit(Query, Max, Skip) when is_integer(Max), is_integer(Skip) ->
     case proplists:is_defined(set_limit, Query) of
 	true ->
 	    ClearedQuery = proplists:delete(set_limit, Query),
-	    [{set_limit, {integer_to_list(Max), integer_to_list(Skip)}} | ClearedQuery];
+	    [{set_limit, {Max, Skip}} | ClearedQuery];
 	false ->
-	    [{set_limit, {integer_to_list(Max), integer_to_list(Skip)}} | Query]
+	    [{set_limit, {Max, Skip}} | Query]
     end.
-%%% XXX: should the missing skip be 0 or -1 (protocol ref and perl versions seem to disagree)
+
+%% @spec query_set_limit(Query::proplist(),
+%%                       Max::integer()) -> proplist()
+%%
+%% @doc Set a limit on the number of returned values for Query.
+%%
+%% XXX: should the missing skip be 0 or -1 (protocol ref and perl versions seem to disagree)
 query_set_limit(Query, Max) ->
     query_set_limit(Query, Max, 0).
 
-%% Set the order for returned values
+%% @spec query_set_order(Query::proplist(),
+%%                       primary | ColName::iolist(),
+%%                       Type::order_type()) -> proplist()
+%%
+%% @doc Set the order for returned values in Query.
 query_set_order(Query, primary, Type) when is_atom(Type) ->
     case proplists:is_defined(set_order, Query) of
 	true ->
@@ -408,16 +443,29 @@ query_set_order(Query, ColName, Type) when is_atom(Type) ->
 	    [{set_order, {ColName, order_request_val(Type)}} | Query]
     end.
 
-%% Run a prepared query against the table and return matching keys.
+%% @spec search(Socket::port,
+%%              TblQuery::proplist()) -> keylist() | error()
+%%
+%% @doc Run a prepared query against the table and return matching keys.
 search(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
-    ?TT(<<"search">>, SearchQuery).
+    ?TRaw(<<"search">>, SearchQuery).
 
-%% Run a prepared query against the table and get the count of matching keys.
+%% @spec searchcount(Socket::port,
+%%                   TblQuery::proplist()) -> [integer()] | error()
+%%
+%% @doc Run a prepared query against the table and get the count of matching keys.
 searchcount(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
-    CountQuery = [SearchQuery | <<"count">>],
-    ?TT(<<"search">>, CountQuery).
+    CountQuery = SearchQuery ++ ["count"],
+    case ?TRaw(<<"search">>, CountQuery) of
+	{error, Reason} ->
+	    {error, Reason};
+	[] ->
+	    0;
+	[Count] ->
+	    list_to_integer(binary_to_list(Count))
+    end.
 
 %% %% Run a prepared query against the table and get the matching records.  Due
 %% %% to protocol restraints, the returned result cannot include columns whose
@@ -430,11 +478,14 @@ searchcount(Socket, TblQuery) ->
 %% no_nulls(List) when is_list(List) ->
 %%     not(lists:member(0, List)).
 
-%% Run a prepared query against the table and remove the matching records
+%% @spec searchout(Socket::port,
+%%                 TblQuery::proplist()) -> ok | error()
+%%
+%% @doc Run a prepared query against the table and remove the matching records.
 searchout(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
-    OutQuery = [SearchQuery | <<"out">>],
-    ?TT(<<"search">>, OutQuery).
+    OutQuery = SearchQuery ++ ["out"],
+    ?TSimple(<<"search">>, OutQuery).
 
 %% tblrescols(Socket, TblQuery) ->
 %%     void.
@@ -450,6 +501,8 @@ add_condition_op_val({Op, no_index}) when is_atom(Op) ->
     ?QCNOIDX bor add_condition_op_val(Op);
 add_condition_op_val({no, Op, no_index}) when is_atom(Op)->
     ?QCNEGATE bor ?QCNOIDX bor add_condition_op_val(Op);
+add_condition_op_val({Op}) when is_atom(Op) ->
+    add_condition_op_val(Op);
 add_condition_op_val(Op) when is_atom(Op) ->
     case Op of
 	str_eq ->
@@ -529,9 +582,10 @@ query_to_argslist([{K, V} | T], BinArgs) ->
 	    {ColName, Op, ExprList} = V,
 	    query_to_argslist(T, [["addcond", ?NULL, ColName, ?NULL, Op, ?NULL, ExprList] | BinArgs]);
 	set_limit ->
+	    % XXX: check spec to see if the max and skip should be integers or chars
 	    {M, S} = V,
 	    query_to_argslist(T, [["setlimit", ?NULL, <<M:32>>, ?NULL, <<S:32>>] | BinArgs]);
-	order_by ->
+	set_order ->
             {ColName, Type} = V,
 	    query_to_argslist(T, [["setorder", ?NULL, ColName, ?NULL, Type] | BinArgs])
     end;
