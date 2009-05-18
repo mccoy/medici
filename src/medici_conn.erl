@@ -55,7 +55,7 @@ init(ClientProps) ->
     case get_db_type(Sock) of
 	{ok, Endian, table} ->
 	    Principe = principe:new(Endian),
-	    DbType = principe_table(Principe);
+	    DbType = principe_table:new(Principe);
 	{ok, big, _} ->
 	    DbType = principe:new(big);
 	{ok, little, _} ->
@@ -198,7 +198,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Query the remote end of the socket to get the remote database type
 get_db_type(Socket) when is_port(Socket) ->
     TmpMod = principe:new(bad_val),
-    StatInfo = principe:stat(Socket),
+    StatInfo = TmpMod:stat(Socket),
     case StatInfo of
 	{error, Reason} ->
 	    {error, Reason};
@@ -224,7 +224,7 @@ get_db_type(Socket) when is_port(Socket) ->
 		    Type = fixed;
 		_ -> 
 		    ?DEBUG_LOG("~p:get_db_type returned ~p~n", [?MODULE, proplists:get_value(type, StatList)]),
-		    Type = error;
+		    Type = error
 	    end,
 	    case Type of
 		error ->

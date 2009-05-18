@@ -15,6 +15,7 @@
 %%%
 %%%    G = PrincipeMod:new(little).
 %%%    T = principe_table:new(G).
+%%%    T:put(ConnectedSocket, "key1", [{"col1", "val1}, {"col2", 2}]).
 %%%
 %%% @end
 %%%-------------------------------------------------------------------
@@ -28,11 +29,6 @@
 %% 	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
 %% 	 searchcount/2, searchout/2, encode_table/1, decode_table/1]).
 %%-export([table/1])  % Not tested yet
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--include("test/principe_table_test.erl").
--endif.
 
 -define(NULL, <<0:8>>).
 
@@ -66,7 +62,10 @@
 -define(QONUMDESC, 3).
 
 %% Some function patterns that are used frequently
--define(TSimple(Func, Args), case PrincipeMod:misc(Socket, Func, Args) of [] -> ok; Error -> Error end).
+-define(TSimple(Func, Args), case PrincipeMod:misc(Socket, Func, Args) of 
+				 [] -> ok; 
+				 Error -> Error 
+			     end).
 -define(TRaw(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
 
 %% Some standard types for edoc
@@ -79,7 +78,7 @@
 %% @type error() = {error, term()}
 %% @type index_type() = lexical | decimal | void
 %% @type query_opcode() = str_eq | str_inc| str_begin | str_end | str_and | str_or | str_regex | num_eq | num_gt | num_ge | num_lt | num_le | num_between | num_in_list
-%% @type query_op = query_opcode() | {no, query_opcode()} | {query_opcode{}, no_index} | {no, query_opcode(), no_index}
+%% @type query_op = query_opcode() | {no, query_opcode()} | {query_opcode(), no_index} | {no, query_opcode(), no_index}
 %% @type query_expr = [binary() | string() | integer()]
 %% @type order_type = str_ascending | str_descending | num_ascending | num_descending
 
@@ -115,8 +114,8 @@ connect(ConnectProps) ->
 %%                  (_) -> undefined
 %%               end,
 %%     LookupFun =
-%%         fun(1, Ks) ->
-%%                 PrincipeMod:mget(Socket, Ks)
+%%         fun(1, Keylist) ->
+%%                 PrincipeMod:mget(Socket, Keylist)
 %%         end,
 %%     qlc:table(TF, [{info_fun, InfoFun}, {lookup_fun, LookupFun},{key_equality,'=='}]).
 
@@ -346,7 +345,12 @@ out(Socket, Key) ->
 %% {ColumnName, ColumnValue} tuples.
 %% @end
 get(Socket, Key) ->
-    ?TRaw(<<"get">>, [Key]).
+    case ?TRaw(<<"get">>, [Key]) of 
+	{error, Reason} -> 
+	    {error, Reason}; 
+	RecList ->
+	    decode_table(RecList)
+    end.
 
 %% @spec mget(Socket::port(),
 %%            KeyList::keylist()) -> [{Key::binary(), Value::proplist()}] | error()
@@ -495,6 +499,9 @@ searchout(Socket, TblQuery) ->
 %%  Table utility functions
 %%====================================================================
 
+%% @spec add_condition_op_val(query_op()) -> integer()
+%%
+%% @private Decode add_contition operation tag
 add_condition_op_val({no, Op}) when is_atom(Op) ->
     ?QCNEGATE bor add_condition_op_val(Op);
 add_condition_op_val({Op, no_index}) when is_atom(Op) ->
@@ -535,6 +542,9 @@ add_condition_op_val(Op) when is_atom(Op) ->
 	    ?QCNUMOREQ
     end.
 
+%% @spec setindex_request_val(index_type()) -> integer()
+%%
+%% @private Decode set_index request tag
 setindex_request_val(Type) ->
     case Type of
 	lexical ->
@@ -547,6 +557,9 @@ setindex_request_val(Type) ->
 	    ?ITVOID
     end.
 
+%% @spec order_request_val(order_type()) -> integer()
+%%
+%% @private Decode result order tag
 order_request_val(Type) ->
     case Type of
 	str_ascending ->
@@ -559,6 +572,9 @@ order_request_val(Type) ->
 	    ?QONUMDESC
     end.
 
+%% @spec convert_query_exprlist(query_expr()) -> [string() | ","]
+%%
+%% @private Convert query expression list to comma-seperated list of string values.
 convert_query_exprlist(ExprList) ->
     convert_query_exprlist(ExprList, []).
 
@@ -573,6 +589,9 @@ convert_query_exprlist([H | T], Acc) ->
 convert_query_exprlist([], Acc) ->
     lists:reverse(Acc).
 
+%% @spec query_to_arglist(proplist()) -> [iolist()]
+%%
+%% @private Convert query proplist to an iolist of all its component elements
 query_to_argslist(QueryProplist) ->
     query_to_argslist(QueryProplist, []).
 
@@ -592,6 +611,9 @@ query_to_argslist([{K, V} | T], BinArgs) ->
 query_to_argslist([], BinArgs) ->
     lists:reverse(BinArgs).
 
+%% @spec encode_table(proplist()) -> [value_or_num()]
+%%
+%% @private Convert proplist to a list of key, value sequences.
 encode_table(Data) when is_list(Data) ->
     encode_table(Data, []).
 
@@ -600,6 +622,9 @@ encode_table([], Acc) ->
 encode_table([{K, V} | Tail], Acc) ->
     encode_table(Tail, [V | [ K | Acc]]).
 
+%% @spec decode_table([value_or_num()]) -> proplist() | error()
+%%
+%% @private Convert list of key, value pairs to a proplist
 decode_table({error, Code}) ->
     {error, Code};
 decode_table(Data) when is_list(Data) ->

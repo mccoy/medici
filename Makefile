@@ -1,5 +1,5 @@
-APP_NAME="principe"
-VSN="0.4"
+APP_NAME="medici"
+VSN="0.5"
 
 all: compile
 
@@ -15,15 +15,19 @@ clean:
 	mkdir ebin
 
 # Testing with a Tokyo Tyrant server instance
-test: clean ttclean ttstartd runtest ttstopd
-runtest:
-	erlc -DTEST -I test/ -o ebin/ src/*.erl
-	erl -pa ebin/ -noshell -s principe test -s init stop
+test: clean ttclean tt_normal testbuild run_basic_test ttstopd tt_table run_table_test ttstopd ttclean
+testbuild:
+	erlc -o ebin/ src/*.erl
+	erlc test/*.erl
+run_basic_test:
+	erl -pa ebin/ -pa test/ -noshell -s principe_test test -s init stop
+run_table_test:
+	erl -pa ebin/ -pa test/ -noshell -s principe_table_test test -s init stop
 ttclean:
-	rm -f /tmp/ttserver.pid /tmp/ttserver.tcb
-ttstartd:
+	rm -f /tmp/ttserver.pid /tmp/ttserver.*
+tt_normal:
+	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tcb
+tt_table:
 	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tcb
 ttstopd:
 	kill -TERM `cat /tmp/ttserver.pid`
-ttstart:
-	ttserver /tmp/ttserver.tcb

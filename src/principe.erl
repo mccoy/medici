@@ -43,13 +43,9 @@
 -export([connect/0, connect/1, put/3, putkeep/3, putcat/3, putshl/4, putnr/3,
 	 out/2, get/2, getint/2, getfloat/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3,
 	 addint/3, adddouble/3, adddouble/4, sync/1, vanish/1, rnum/1, size/1, stat/1,
-	 copy/2, restore/3, setmst/3, misc/3, misc_no_update/3, ext/5, misc_arg_encode/1]).
+	 copy/2, restore/3, setmst/3, misc/3, misc_no_update/3, ext/5]).
 %%-export([table/1])  % Not tested yet
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--include("test/principe_test.erl").
--endif.
 
 %% Standard definitions
 -define(TSERVER, "localhost").
@@ -180,7 +176,12 @@ connect(ConnectProps) ->
 %% Call the Tyrant server to store a new value for the given key.
 %% @end
 put(Socket, Key, Value) when is_integer(Value), Value < 4294967296 ->
-    put(Socket, Key, <<Value:32>>);
+    case ServerEndianness of
+	little ->
+	    put(Socket, Key, <<Value:32/little>>);
+	big ->
+	    put(Socket, Key, <<Value:32>>)
+    end;
 put(Socket, Key, Value) when is_float(Value) ->
     case ServerEndianness of
 	little ->
@@ -393,12 +394,7 @@ fwmkeys(Socket, Prefix, MaxKeys) when is_integer(MaxKeys) ->
 %%
 %% @doc Add an integer value to the existing value of a key, returns new value
 addint(Socket, Key, Int) when is_integer(Int) ->
-    case ServerEndianness of
-	little ->
-	    gen_tcp:send(Socket, [<<?ADDINT:16>>, <<(iolist_size(Key)):32>>, <<Int:32/little>>, Key]);
-	big ->
-	    gen_tcp:send(Socket, [<<?ADDINT:16>>, <<(iolist_size(Key)):32>>, <<Int:32>>, Key])
-    end,
+    gen_tcp:send(Socket, [<<?ADDINT:16>>, <<(iolist_size(Key)):32>>, <<Int:32>>, Key]),
     ?R_INT32.
 
 %% @spec adddouble(Socket::port(),
@@ -643,14 +639,7 @@ recv_success(_Socket, {tcp, _, <<0:8>>}) ->
  
 %% receive 8-bit success flag + 32-bit int (endianness determined by remote database)
 recv_size(_Socket, {tcp, _, <<0:8, ValSize:32>>}) ->
-    case ServerEndianness of
-	big ->
-	    ValSize;
-	little ->
- 	    <<Val:32>> = <<ValSize:32/little>>,
-	    Val
-    end.
-
+    ValSize.
  
 %% receive 8-bit success flag + 64-bit int
 recv_size64(_Socket, {tcp, _, <<0:8, ValSize:64>>}) -> 
@@ -720,4 +709,3 @@ recv_until(_Socket, Bin, ReqLength) when byte_size(Bin) =:= ReqLength ->
 recv_until(_Socket, Bin, ReqLength) when byte_size(Bin) > ReqLength ->
     <<Required:ReqLength/binary, Rest/binary>> = Bin,
     {Required, Rest}.
- 
