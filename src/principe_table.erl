@@ -152,6 +152,15 @@ connect(ConnectProps) ->
 %%
 %% @doc Add an integer value to the _num column of a given a key.  The
 %% _num column will be created if it does not already exist.
+%%
+%% NOTE: Something truly wierd about this _num column setup is that tc/tyrant
+%% expects the column to be a string() value internally.  I am assuming this
+%% is because for table databases a null is used as a column separator, if the
+%% _num value was stored as an integer then differing server byte order (which TC
+%% suffers from) would confuse the server.  If you put() an integer() value to
+%% the _num column it will get overwritten by an addint() call, but if you write
+%% a integer_to_list(integer()) value to the num column via a normal put() call
+%% things will work correctly.
 %% @end
 addint(Socket, Key, Int) ->
     PrincipeMod:addint(Socket, Key, Int).
@@ -201,7 +210,15 @@ fwmkeys(Socket, Prefix, MaxKeys) ->
 %% @spec vsiz(Socket::port(),
 %%            Key::key()) -> integer()
 %%
-%% Get the size of the value for a given key.
+%% @doc
+%% Get the size of the value for a given key.  The value returned for
+%% a key will be the total of the column size values, and each column
+%% size will be the size of the column name (in bytes), the size of the
+%% column value (in bytes), plus one for the internal null seperator 
+%% between column name and value plus one for the null terminator for
+%% the column (i.e. length(ColumnName) + length(ColumnValue) + 2 for each
+%% column.)
+%% @end
 vsiz(Socket, Key) ->
     PrincipeMod:vsiz(Socket, Key).
 

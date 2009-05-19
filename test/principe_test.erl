@@ -45,6 +45,8 @@ put_get_test(Mod) ->
     ok = Mod:put(Socket, <<"put_get3">>, 42),
     <<"testval">> = Mod:get(Socket, <<"put_get1">>),
     <<2#1101:32>> = Mod:get(Socket, <<"put_get2">>),
+    42 = Mod:getint(Socket, <<"put_get3">>),
+    % and just to make sure, do a raw check on the endianness of ints
     {_, Endian} = Mod,
     case Endian of
 	little ->
@@ -52,7 +54,6 @@ put_get_test(Mod) ->
 	big ->
 	    <<42:32>> = Mod:get(Socket, <<"put_get3">>)
     end,
-    42 = Mod:getint(Socket, <<"put_get3">>),
     ok.
 
 putkeep_test(Mod) ->
@@ -106,8 +107,13 @@ mget_test(Mod) ->
     ok = Mod:put(Socket, <<"mget2">>, <<"bob">>),
     ok = Mod:put(Socket, <<"mget3">>, <<"carol">>),
     ok = Mod:put(Socket, <<"mget4">>, <<"trent">>),
-    [{<<"mget1">>, <<"alice">>}, {<<"mget2">>, <<"bob">>}, 
-        {<<"mget3">>, <<"carol">>}, {<<"mget4">>, <<"trent">>} ] = Mod:mget(Socket, [<<"mget1">>, <<"mget2">>, <<"mget3">>, <<"mget4">>]),
+    [{<<"mget1">>, <<"alice">>}, 
+     {<<"mget2">>, <<"bob">>}, 
+     {<<"mget3">>, <<"carol">>}, 
+     {<<"mget4">>, <<"trent">>}] = Mod:mget(Socket, [<<"mget1">>, 
+						     <<"mget2">>, 
+						     <<"mget3">>, 
+						     <<"mget4">>]),
     ok.
 
 vsiz_test(Mod) ->
@@ -148,14 +154,12 @@ fwmkeys_test(Mod) ->
     ok = Mod:put(Socket, <<"fwmkeys2">>, <<"2">>),
     ok = Mod:put(Socket, <<"fwmkeys3">>, <<"3">>),
     ok = Mod:put(Socket, <<"fwmkeys4">>, <<"4">>),
-
     Keys1 = Mod:fwmkeys(Socket, <<"fwmkeys">>, 4),
     4 = length(Keys1),
     true = lists:member(<<"fwmkeys1">>, Keys1),
     true = lists:member(<<"fwmkeys2">>, Keys1),
     true = lists:member(<<"fwmkeys3">>, Keys1),
     true = lists:member(<<"fwmkeys4">>, Keys1),
-
     Keys2 = Mod:fwmkeys(Socket, <<"fwmkeys">>, 2),
     2 = length(Keys2),
     ok.
