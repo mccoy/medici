@@ -146,6 +146,54 @@ connect(ConnectProps) ->
 %%  Standard tyrant functions (straight pass-through to principe.erl)
 %%====================================================================
 
+%% @spec mget(Socket::port(),
+%%            KeyList::keylist()) -> [{Key::binary(), Value::proplist()}] | error()
+%%
+%% @doc 
+%% Get the values for a list of keys.  Due to the way that columns are returned
+%% via the tyrant protocol a null seperator is used to break 
+mget(Socket, KeyList) ->
+    case PrincipeMod:mget(Socket, KeyList) of
+	{error, Reason} ->
+	    {error, Reason};
+	MgetResults ->
+	    lists:keymap(fun(BinaryToSplit) ->
+				 columnize_mget_results(binary_to_list(BinaryToSplit), [], []) 
+			 end, 2, MgetResults)
+    end.
+
+
+%% @spec columnize_values(ColumnValues::list(),
+%%                        Current::list(),
+%%                        Stack::[binary()]) -> [{ColumnName::binary(), ColumnValue::binary()}]
+%%
+%% @private
+%% Convert a list of bytes (generally one that was converted running binary_to_list
+%% on the results returned from tyrant) into a proplist of column names and values.
+%% This function (like tyrant) uses a null value as the separator for column names
+%% and values.  A column name that contains a null will cause this function to choke
+%% or return invalid data.
+%% @end
+columnize_values([], Current, Stack) ->
+    FinalStack = lists:reverse([list_to_binary(lists:reverse(Current)) | Stack]),
+    return_column_results(FinalStack, []);
+columnize_values([0 | T], [], Stack) ->
+    columnize_mget_results(T, [], Stack);
+columnize_values([0 | T], Current, Stack) ->
+    columnize_mget_results(T, [], [list_to_binary(lists:reverse(Current)) | Stack]);
+columnize_values([H | T], Current, Stack) ->
+    columnize_mget_results(T, [H | Current], Stack).
+
+%% @spec return_column_vals(ValuesToParse::list(),
+%%                          FinalResult::proplist()) -> proplist()
+%%
+%% @private Take a list with an even number of elements and make it a proplist
+return_column_vals([], Cols) ->
+    Cols;
+return_column_vals([K, V | Tail], Cols) ->
+    return_column_results(Tail, [{K, V} | Cols]).
+
+
 %% @spec addint(Socket::port(),
 %%              Key::key(),
 %%              Int::integer()) -> integer() | error()
@@ -369,13 +417,6 @@ get(Socket, Key) ->
 	    decode_table(RecList)
     end.
 
-%% @spec mget(Socket::port(),
-%%            KeyList::keylist()) -> [{Key::binary(), Value::proplist()}] | error()
-%%
-%% @doc Get the values for a list of keys.
-mget(Socket, KeyList) ->
-    ?TRaw(<<"getlist">>, [KeyList]).
-
 %% @spec setindex(Socket::port(),
 %%                primary | ColName::iolist(),
 %%                Type::index_type()) -> [] | error()
@@ -488,17 +529,6 @@ searchcount(Socket, TblQuery) ->
 	    list_to_integer(binary_to_list(Count))
     end.
 
-%% %% Run a prepared query against the table and get the matching records.  Due
-%% %% to protocol restraints, the returned result cannot include columns whose
-%% %% name or value include the null (0x0) character.
-%% tblsearchget(Socket, TblQuery) ->
-%%     void.
-
-%% no_nulls(Binary) when is_binary(Binary) ->
-%%     no_nulls(binary_to_list(Binary));
-%% no_nulls(List) when is_list(List) ->
-%%     not(lists:member(0, List)).
-
 %% @spec searchout(Socket::port,
 %%                 TblQuery::proplist()) -> ok | error()
 %%
@@ -507,6 +537,12 @@ searchout(Socket, TblQuery) ->
     SearchQuery = query_to_argslist(TblQuery),
     OutQuery = SearchQuery ++ ["out"],
     ?TSimple(<<"search">>, OutQuery).
+
+%% %% Run a prepared query against the table and get the matching records.  Due
+%% %% to protocol restraints, the returned result cannot include columns whose
+%% %% name or value include the null (0x0) character.
+%% tblsearchget(Socket, TblQuery) ->
+%%     void.
 
 %% tblrescols(Socket, TblQuery) ->
 %%     void.

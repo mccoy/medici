@@ -27,64 +27,70 @@ test(ConnectParams) ->
     sync_test(Mod),
     size_test(Mod),
     rnum_test(Mod),
-    stat_test(Mod).
-    
+    stat_test(Mod),
+    mget_test(Mod).
 
-
-put_get_test(Mod) ->
+setup_column_data(Mod) ->
     {ok, Socket} = Mod:connect(),
     ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"put_get1">>, [{"col1", "testval1"}]),
-    ok = Mod:put(Socket, <<"put_get2">>, [{"col1", "testval2"}, {"col2", 32}]),
-    [{<<"col1">>,<<"testval1">>}] = Mod:get(Socket, <<"put_get1">>),
+    ColData = [{"rec1", [{"name", "alice"}, {"sport", "baseball"}]},
+	       {"rec2", [{"name", "bob"}, {"sport", "basketball"}]},
+	       {"rec3", [{"name", "carol"}, {"age", "24"}]},
+	       {"rec4", [{"name", "trent"}, {"age", "33"}, {"sport", "football"}]},
+	       {"rec5", [{"name", "mallet"}, {"sport", "tennis"}, {"fruit", "apple"}]}
+	       ],
+    lists:foreach(fun({Key, ValProplist}) ->
+			  Mod:put(Socket, Key, ValProplist)
+		  end, ColData),
+    Socket.
+
+put_get_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    [{<<"age">>, <<"24">>}, {<<"name">>, <<"carol">>}] = lists:sort(Mod:get(Socket, "rec3")),
+    ok = Mod:put(Socket, <<"put_get1">>, [{"num", 32}]),
     case Mod of
 	{_Principe, {_PrincipeTable, little}} ->
-	    [{<<"col1">>, <<"testval2">>}, 
-	     {<<"col2">>, <<32:32/little>>}] = lists:sort(Mod:get(Socket, <<"put_get2">>));
+	     [{<<"num">>, <<32:32/little>>}] = lists:sort(Mod:get(Socket, <<"put_get1">>));
 	{_Principe, {_PrincipeTable, big}} ->
-	    [{<<"col1">>, <<"testval2">>}, 
-	     {<<"col2">>, <<32:32>>}] = lists:sort(Mod:get(Socket, <<"put_get2">>))
+	     [{<<"num">>, <<32:32>>}] = lists:sort(Mod:get(Socket, <<"put_get1">>))
     end,
     ok.
 
 putkeep_test(Mod) ->
     {ok, Socket} = Mod:connect(),
     ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"putkeep1">>, [{"col1", "testval1"}]),
-    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, <<"putkeep1">>),
+    ok = Mod:put(Socket, "putkeep1", [{"col1", "testval1"}]),
+    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, "putkeep1"),
     {error, _} = Mod:putkeep(Socket, <<"putkeep1">>, [{"col1", "testval2"}]),
-    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, <<"putkeep1">>),
+    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, "putkeep1"),
     ok = Mod:putkeep(Socket, <<"putkeep2">>, [{"col1", "testval2"}]),
-    [{<<"col1">>, <<"testval2">>}] = Mod:get(Socket, <<"putkeep2">>),
+    [{<<"col1">>, <<"testval2">>}] = Mod:get(Socket, "putkeep2"),
     ok.
 
 putcat_test(Mod) ->
-    {ok, Socket} = Mod:connect(),
-    ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"putcat1">>, [{"col1", "testval1"}]),
-    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, <<"putcat1">>),
-    ok = Mod:putcat(Socket, <<"putcat1">>, [{"col2", "testval2"}]),
-    [{<<"col1">>, <<"testval1">>},
-     {<<"col2">>, <<"testval2">>}] = lists:sort(Mod:get(Socket, <<"putcat1">>)),
+    Socket = setup_column_data(Mod),
+    [{<<"age">>, <<"24">>}, 
+     {<<"name">>, <<"carol">>}] = lists:sort(Mod:get(Socket, "rec3")),
+    ok = Mod:putcat(Socket, "rec3", [{"sport", "golf"}]),
+    [{<<"age">>, <<"24">>}, 
+     {<<"name">>, <<"carol">>}, 
+     {<<"sport">>, <<"golf">>}] = lists:sort(Mod:get(Socket, "rec3")),
     ok.
 
 update_test(Mod) ->
-    {ok, Socket} = Mod:connect(),
-    ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"update1">>, [{"col1", "testval1"}]),
-    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, <<"update1">>),
-    ok = Mod:update(Socket, <<"update1">>, [{"col1", "updateval1"}, {"col2", "testval2"}]),
-    [{<<"col1">>, <<"updateval1">>},
-     {<<"col2">>, <<"testval2">>}] = lists:sort(Mod:get(Socket, <<"update1">>)),
+    Socket = setup_column_data(Mod),
+    [{<<"name">>, <<"alice">>},
+     {<<"sport">>, <<"baseball">>}] = Mod:get(Socket, "rec1"),
+    ok = Mod:update(Socket, "rec1", [{"sport", "swimming"}, {"pet", "dog"}]),
+    [{<<"name">>, <<"alice">>},
+     {<<"pet">>, <<"dog">>},
+     {<<"sport">>, <<"swimming">>}] = lists:sort(Mod:get(Socket, "rec1")),
     ok.
 
 out_test(Mod) ->
-    {ok, Socket} = Mod:connect(),
-    ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"out1">>, [{"col1", "testval1"}]),
-    [{<<"col1">>, <<"testval1">>}] = Mod:get(Socket, <<"out1">>),
-    ok = Mod:out(Socket, <<"out1">>),
-    {error, _} = Mod:get(Socket, <<"out1">>),
+    Socket = setup_column_data(Mod),
+    ok = Mod:out(Socket, <<"rec1">>),
+    {error, _} = Mod:get(Socket, <<"rec1">>),
     ok.
 
 vsiz_test(Mod) ->
@@ -92,32 +98,32 @@ vsiz_test(Mod) ->
     ok = Mod:vanish(Socket),
     ColName = "col1",
     ColVal = "vsiz test",
-    ok = Mod:put(Socket, <<"vsiz1">>, [{ColName, ColVal}]),
+    ok = Mod:put(Socket, "vsiz1", [{ColName, ColVal}]),
     ExpectedLength = length(ColName) + length(ColVal) + 2, % col + null sep + val + null column stop
-    ExpectedLength = Mod:vsiz(Socket, <<"vsiz1">>),
+    ExpectedLength = Mod:vsiz(Socket, "vsiz1"),
     ColName2 = "another col",
     ColVal2 = "more bytes",
-    ok = Mod:put(Socket, <<"vsiz2">>, [{ColName, ColVal}, {ColName2, ColVal2}]),
+    ok = Mod:put(Socket, "vsiz2", [{ColName, ColVal}, {ColName2, ColVal2}]),
     ExpectedLength2 = ExpectedLength + length(ColName2) + length(ColVal2) + 2,
-    ExpectedLength2 = Mod:vsiz(Socket, <<"vsiz2">>),
+    ExpectedLength2 = Mod:vsiz(Socket, "vsiz2"),
     ok.
 
 vanish_test(Mod) ->
     {ok, Socket} = Mod:connect(),
     ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"vanish1">>, [{"col1", "going away"}]),
+    ok = Mod:put(Socket, "vanish1", [{"col1", "going away"}]),
     ok = Mod:vanish(Socket),
-    {error, _} = Mod:get(Socket, <<"vanish1">>),
+    {error, _} = Mod:get(Socket, "vanish1"),
     ok.
 
 addint_test(Mod) ->
     {ok, Socket} = Mod:connect(),
     ok = Mod:vanish(Socket),
-    100 = Mod:addint(Socket, <<"addint1">>, 100),
-    ok = Mod:put(Socket, <<"addint2">>, [{"_num", "10"}]), % see principe_table:addint edoc for why a string() is used
-    20 = Mod:addint(Socket, <<"addint2">>, 10),
-    [{<<"_num">>, <<"100">>}] = Mod:get(Socket, <<"addint1">>),
-    [{<<"_num">>, <<"20">>}] = Mod:get(Socket, <<"addint2">>),
+    100 = Mod:addint(Socket, "addint1", 100),
+    ok = Mod:put(Socket, "addint2", [{"_num", "10"}]), % see principe_table:addint edoc for why a string() is used
+    20 = Mod:addint(Socket, "addint2", 10),
+    [{<<"_num">>, <<"100">>}] = Mod:get(Socket, "addint1"),
+    [{<<"_num">>, <<"20">>}] = Mod:get(Socket, "addint2"),
     ok.
 
 sync_test(Mod) ->
@@ -126,11 +132,10 @@ sync_test(Mod) ->
     ok.
 
 rnum_test(Mod) ->
-    {ok, Socket} = Mod:connect(),
-    ok = Mod:vanish(Socket),
-    ok = Mod:put(Socket, <<"rnum1">>, [{"col1", "foo"}]),
-    ok = Mod:put(Socket, <<"rnum2">>, [{"col2", "bar"}]),
-    2 = Mod:rnum(Socket),
+    Socket = setup_column_data(Mod),
+    5 = Mod:rnum(Socket),
+    ok = Mod:out(Socket, "rec1"),
+    4 = Mod:rnum(Socket),
     ok = Mod:vanish(Socket),
     0 = Mod:rnum(Socket),
     ok.
@@ -145,21 +150,13 @@ stat_test(Mod) ->
     Mod:stat(Socket),
     ok.
 
-%% mget_test(Mod) ->
-%%     {ok, Socket} = Mod:connect(),
-%%     ok = Mod:vanish(Socket),
-%%     ok = Mod:put(Socket, <<"mget1">>, <<"alice">>),
-%%     ok = Mod:put(Socket, <<"mget2">>, <<"bob">>),
-%%     ok = Mod:put(Socket, <<"mget3">>, <<"carol">>),
-%%     ok = Mod:put(Socket, <<"mget4">>, <<"trent">>),
-%%     [{<<"mget1">>, <<"alice">>}, 
-%%      {<<"mget2">>, <<"bob">>}, 
-%%      {<<"mget3">>, <<"carol">>}, 
-%%      {<<"mget4">>, <<"trent">>}] = Mod:mget(Socket, [<<"mget1">>, 
-%% 						     <<"mget2">>, 
-%% 						     <<"mget3">>, 
-%% 						     <<"mget4">>]),
-%%     ok.
+mget_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    MGetData = Mod:mget(Socket, ["rec1", "rec3", "rec5"]),
+    [{<<"name">>, <<"alice">>},{<<"sport">>, <<"baseball">>}] = lists:sort(proplists:get_value(<<"rec1">>, MGetData)),
+    undefined = proplists:get_value(<<"rec2">>, MGetData),
+    [<<"rec1">>, <<"rec3">>, <<"rec5">>] = lists:sort(proplists:get_keys(MGetData)),
+    ok.
 
 %% iter_test(Mod) ->
 %%     {ok, Socket} = Mod:connect(),
