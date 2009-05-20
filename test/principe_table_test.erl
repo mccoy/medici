@@ -28,7 +28,9 @@ test(ConnectParams) ->
     size_test(Mod),
     rnum_test(Mod),
     stat_test(Mod),
-    mget_test(Mod).
+    mget_test(Mod),
+    iter_test(Mod),
+    fwmkeys_test(Mod).
 
 setup_column_data(Mod) ->
     {ok, Socket} = Mod:connect(),
@@ -158,37 +160,26 @@ mget_test(Mod) ->
     [<<"rec1">>, <<"rec3">>, <<"rec5">>] = lists:sort(proplists:get_keys(MGetData)),
     ok.
 
-%% iter_test(Mod) ->
-%%     {ok, Socket} = Mod:connect(),
-%%     ok = Mod:vanish(Socket),
-%%     ok = Mod:put(Socket, <<"a">>, <<"first">>),
-%%     ok = Mod:iterinit(Socket),
-%%     <<"a">> = Mod:iternext(Socket), % "a" should be the first key
-%%     % Now to test a bit of real iteration
-%%     ok = Mod:put(Socket, <<"b">>, <<"second">>),
-%%     ok = Mod:put(Socket, <<"c">>, <<"third">>),
-%%     ok = Mod:iterinit(Socket),
-%%     One = Mod:iternext(Socket),
-%%     Two = Mod:iternext(Socket),
-%%     Three = Mod:iternext(Socket),
-%%     {error, _} = Mod:iternext(Socket),
-%%     [<<"a">>, <<"b">>, <<"c">>] = lists:sort([One, Two, Three]),
-%%     ok.
+iter_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    AllKeys = [<<"rec1">>, <<"rec2">>, <<"rec3">>, <<"rec4">>, <<"rec5">>],
+    ok = Mod:iterinit(Socket),
+    First = Mod:iternext(Socket),
+    true = lists:member(First, AllKeys),
+    IterAll = lists:foldl(fun(_Count, Acc) -> [Mod:iternext(Socket) | Acc] end, 
+			  [First], 
+			  lists:seq(1, length(AllKeys)-1)),
+    AllKeys = lists:sort(IterAll),
+    {error, _} = Mod:iternext(Socket),
+    ok.
 
-%% fwmkeys_test(Mod) ->
-%%     {ok, Socket} = Mod:connect(),
-%%     ok = Mod:put(Socket, <<"fwmkeys1">>, <<"1">>),
-%%     ok = Mod:put(Socket, <<"fwmkeys2">>, <<"2">>),
-%%     ok = Mod:put(Socket, <<"fwmkeys3">>, <<"3">>),
-%%     ok = Mod:put(Socket, <<"fwmkeys4">>, <<"4">>),
-%%     Keys1 = Mod:fwmkeys(Socket, <<"fwmkeys">>, 4),
-%%     4 = length(Keys1),
-%%     true = lists:member(<<"fwmkeys1">>, Keys1),
-%%     true = lists:member(<<"fwmkeys2">>, Keys1),
-%%     true = lists:member(<<"fwmkeys3">>, Keys1),
-%%     true = lists:member(<<"fwmkeys4">>, Keys1),
-%%     Keys2 = Mod:fwmkeys(Socket, <<"fwmkeys">>, 2),
-%%     2 = length(Keys2),
-%%     ok.
+fwmkeys_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    ok = Mod:put(Socket, "fwmkeys1", [{"foo", "bar"}]),
+    4 = length(Mod:fwmkeys(Socket, "rec", 4)),
+    5 = length(Mod:fwmkeys(Socket, "rec", 8)),
+    [<<"fwmkeys1">>] = Mod:fwmkeys(Socket, "fwm", 3),
+    [<<"rec1">>, <<"rec2">>, <<"rec3">>] = Mod:fwmkeys(Socket, "rec", 3),
+    ok.
 
 %% TODO: All of the tests related to search() and its variants.
