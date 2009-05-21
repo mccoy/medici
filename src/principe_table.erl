@@ -158,7 +158,7 @@ mget(Socket, KeyList) ->
 	    {error, Reason};
 	MgetResults ->
 	    lists:keymap(fun(BinaryToSplit) ->
-				 columnize_mget_results(binary_to_list(BinaryToSplit), [], []) 
+				 columnize_values(binary_to_list(BinaryToSplit), [], []) 
 			 end, 2, MgetResults)
     end.
 
@@ -176,13 +176,13 @@ mget(Socket, KeyList) ->
 %% @end
 columnize_values([], Current, Stack) ->
     FinalStack = lists:reverse([list_to_binary(lists:reverse(Current)) | Stack]),
-    return_column_results(FinalStack, []);
+    return_column_vals(FinalStack, []);
 columnize_values([0 | T], [], Stack) ->
-    columnize_mget_results(T, [], Stack);
+    columnize_values(T, [], Stack);
 columnize_values([0 | T], Current, Stack) ->
-    columnize_mget_results(T, [], [list_to_binary(lists:reverse(Current)) | Stack]);
+    columnize_values(T, [], [list_to_binary(lists:reverse(Current)) | Stack]);
 columnize_values([H | T], Current, Stack) ->
-    columnize_mget_results(T, [H | Current], Stack).
+    columnize_values(T, [H | Current], Stack).
 
 %% @spec return_column_vals(ValuesToParse::list(),
 %%                          FinalResult::proplist()) -> proplist()
@@ -191,7 +191,7 @@ columnize_values([H | T], Current, Stack) ->
 return_column_vals([], Cols) ->
     Cols;
 return_column_vals([K, V | Tail], Cols) ->
-    return_column_results(Tail, [{K, V} | Cols]).
+    return_column_vals(Tail, [{K, V} | Cols]).
 
 
 %% @spec addint(Socket::port(),
@@ -458,14 +458,16 @@ genuid(Socket) ->
 %% be bypassed.
 %% @end
 query_add_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
-    [{add_cond, {ColName, <<(add_condition_op_val(Op)):32>>, convert_query_exprlist(ExprList)}} | Query].
+    [{add_cond, {ColName, 
+		 integer_to_list(add_condition_op_val(Op)), 
+		 convert_query_exprlist(ExprList)}} | Query].
 
 %% @spec query_set_limit(Query::proplist(),
 %%                       Max::integer(),
 %%                       Skip::integer()) -> proplist()
 %%
 %% @doc Set a limit on the number of returned values for Query, skip the first Skip records.
-query_set_limit(Query, Max, Skip) when is_integer(Max), is_integer(Skip) ->
+query_set_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), Skip >= 0 ->
     case proplists:is_defined(set_limit, Query) of
 	true ->
 	    ClearedQuery = proplists:delete(set_limit, Query),
@@ -627,7 +629,8 @@ order_request_val(Type) ->
 
 %% @spec convert_query_exprlist(query_expr()) -> [string() | ","]
 %%
-%% @private Convert query expression list to comma-seperated list of string values.
+%% @private 
+%% Convert query expression list to comma-seperated list of string values.
 convert_query_exprlist(ExprList) ->
     convert_query_exprlist(ExprList, []).
 
@@ -644,7 +647,7 @@ convert_query_exprlist([], Acc) ->
 
 %% @spec query_to_arglist(proplist()) -> [iolist()]
 %%
-%% @private Convert query proplist to an iolist of all its component elements
+%% @private Convert query proplist to an iolist of all its component elements.
 query_to_argslist(QueryProplist) ->
     query_to_argslist(QueryProplist, []).
 

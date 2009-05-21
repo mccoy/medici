@@ -2,6 +2,8 @@
 
 -export([test/0, test/1]).
 
+-define(PRINT(Arg), io:format("~p~n", [Arg])).
+
 test() ->
     test([]).
 
@@ -30,7 +32,9 @@ test(ConnectParams) ->
     stat_test(Mod),
     mget_test(Mod),
     iter_test(Mod),
-    fwmkeys_test(Mod).
+    fwmkeys_test(Mod),
+    query_generation_test(Mod),
+    search_test(Mod).
 
 setup_column_data(Mod) ->
     {ok, Socket} = Mod:connect(),
@@ -182,4 +186,19 @@ fwmkeys_test(Mod) ->
     [<<"rec1">>, <<"rec2">>, <<"rec3">>] = Mod:fwmkeys(Socket, "rec", 3),
     ok.
 
-%% TODO: All of the tests related to search() and its variants.
+query_generation_test(Mod) ->
+    [{set_order, {<<0:8>>, 1}}] = Mod:query_set_order([], primary, str_descending),
+    [{set_order, {"foo", 0}}] = Mod:query_set_order([{set_order, blah}], "foo", str_ascending),
+    [{set_limit, {2, 0}}] = Mod:query_set_limit([], 2),
+    [{set_limit, {4, 1}}] = Mod:query_set_limit([{set_limit, blah}], 4, 1),
+    [{add_cond, {"foo", "0", ["bar"]}}] = Mod:query_add_condition([], "foo", str_eq, ["bar"]),
+    [{add_cond, {"foo", "16777220", ["bar",",","baz"]}}] = 
+	Mod:query_add_condition([], "foo", {no, str_and}, ["bar", "baz"]),
+    ok.
+
+search_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    Query1 = Mod:query_add_condition([], "name", str_eq, ["alice"]),
+    [<<"rec1">>] = Mod:search(Socket, Query1),
+    ok.
+    
