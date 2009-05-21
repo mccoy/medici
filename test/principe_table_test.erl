@@ -34,7 +34,9 @@ test(ConnectParams) ->
     iter_test(Mod),
     fwmkeys_test(Mod),
     query_generation_test(Mod),
-    search_test(Mod).
+    search_test(Mod),
+    searchcount_test(Mod),
+    searchout_test(Mod).
 
 setup_column_data(Mod) ->
     {ok, Socket} = Mod:connect(),
@@ -187,21 +189,44 @@ fwmkeys_test(Mod) ->
     ok.
 
 query_generation_test(Mod) ->
-    [{set_order, {<<0:8>>, 1}}] = Mod:query_set_order([], primary, str_descending),
-    [{set_order, {"foo", 0}}] = Mod:query_set_order([{set_order, blah}], "foo", str_ascending),
-    [{set_limit, {2, 0}}] = Mod:query_set_limit([], 2),
-    [{set_limit, {4, 1}}] = Mod:query_set_limit([{set_limit, blah}], 4, 1),
-    [{add_cond, {"foo", 0, ["bar"]}}] = Mod:query_add_condition([], "foo", str_eq, ["bar"]),
-    [{add_cond, {"foo", 16777220, ["bar",",","baz"]}}] = 
-	Mod:query_add_condition([], "foo", {no, str_and}, ["bar", "baz"]),
+    [{{set_order, primary, str_descending}, 
+      ["setorder", <<0:8>>, <<0:8>>, <<0:8>>, "1"]}] = Mod:query_order([], primary, str_descending),
+    [{{set_order, "foo", str_ascending}, 
+      ["setorder", <<0:8>>, "foo", <<0:8>>, "0"]}] = Mod:query_order([{{set_order, blah}, ["foo"]}], "foo", str_ascending),
+    [{{set_limit, 2, 0}, ["setlimit", <<0:8>>, "2", <<0:8>>, "0"]}] = Mod:query_limit([], 2),
+    [{{set_limit, 4, 1}, ["setlimit", <<0:8>>, "4", <<0:8>>, "1"]}] = Mod:query_limit([{{set_limit, blah}, ["foo"]}], 4, 1),
+    [{{add_cond, "foo", str_eq, ["bar"]}, 
+      ["addcond", <<0:8>>, "foo", <<0:8>>, "0", <<0:8>>, ["bar"]]}] = Mod:query_condition([], "foo", str_eq, ["bar"]),
+    [{{add_cond, "foo", {no, str_and}, ["bar","baz"]},
+     ["addcond", <<0:8>>, "foo", <<0:8>>, "16777220", <<0:8>>, ["bar",",","baz"]]}] = 
+	Mod:query_condition([], "foo", {no, str_and}, ["bar", "baz"]),
     ok.
 
 search_test(Mod) ->
     Socket = setup_column_data(Mod),
-    Query1 = Mod:query_add_condition([], "name", str_eq, ["alice"]),
+    Query1 = Mod:query_condition([], "name", str_eq, ["alice"]),
     [<<"rec1">>] = Mod:search(Socket, Query1),
-    Query2 = Mod:query_add_condition([], "name", {no, str_eq}, ["alice"]),
-    Query2A = Mod:query_set_limit(Query2, 2),
+    Query2 = Mod:query_condition([], "name", {no, str_eq}, ["alice"]),
+    Query2A = Mod:query_limit(Query2, 2),
     [<<"rec2">>, <<"rec3">>] = Mod:search(Socket, Query2A),
+    Query3 = Mod:query_condition([], "age", num_ge, [25]),
+    [<<"rec4">>] = Mod:search(Socket, Query3),
+    ok.
+
+searchcount_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    Query1 = Mod:query_condition([], "name", str_or, ["alice", "bob"]),
+    2 = Mod:searchcount(Socket, Query1), 
+    ok.
+
+searchout_test(Mod) ->
+    Socket = setup_column_data(Mod),
+    5 = Mod:rnum(Socket),
+    %% Also testing regex matches, should hit "baseball" and "basketball" but
+    %% skip "football"
+    Query1 = Mod:query_condition([], "sport", str_regex, ["^ba"]),
+    ok = Mod:searchout(Socket, Query1),
+    3 = Mod:rnum(Socket),
+    {error, _} = Mod:get(Socket, "rec1"),
     ok.
     

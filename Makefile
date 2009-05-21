@@ -13,6 +13,7 @@ compile: clean
 clean:
 	rm -rfv ebin/
 	mkdir ebin
+	rm -fv test/*.beam
 
 # Testing with a Tokyo Tyrant server instance
 test: clean ttclean tt_normal testbuild run_basic_test ttstopd tt_table run_table_test ttstopd ttclean
@@ -28,6 +29,6 @@ ttclean:
 tt_normal:
 	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tcb
 tt_table:
-	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tcb
+	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tct
 ttstopd:
 	kill -TERM `cat /tmp/ttserver.pid`

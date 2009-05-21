@@ -2,11 +2,6 @@ principe: need to test against fixed-length TT databases.
 
 principe_table: need to handle floats as a column value type
 
-principe_table: need to encode floats/ints correctly
-
-principe_table: need to test complicated queries, especially ones that
-use multiple query expression args
-
 principe_table: schema converter? a fun that you pass in (perhaps
 as a module parameter) which automatically performs input/output
 type conversion for column values and will convert column keys to

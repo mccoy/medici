@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File:      principe.erl
+%%% File:      principe_table.erl
 %%% @author    Jim McCoy <mccoy@mad-scientist.com>
 %%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
 %%%
@@ -12,22 +12,22 @@
 %%% given the inter-module refs I can't see a way around it...)  To get a
 %%% properly setup version of this module you would do something like the
 %%% following:
-%%%
 %%%    G = PrincipeMod:new(little).
 %%%    T = principe_table:new(G).
+%%% and to use it do the following:
+%%%    {ok, ConnectedSocket} = T:connect(),
 %%%    T:put(ConnectedSocket, "key1", [{"col1", "val1}, {"col2", 2}]).
-%%%
 %%% @end
 %%%-------------------------------------------------------------------
 
 -module(principe_table,[PrincipeMod]).
--compile([binary_comprehension, export_all]).
-%% -export([connect/0, connect/1, put/3, putkeep/3, putcat/3, update/3, out/2,
-%% 	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
-%% 	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/3, adddouble/4,
-%% 	 setmst/3, setindex/3, query_set_limit/3, query_set_limit/2,
-%% 	 query_add_condition/4, query_set_order/3, search/2, genuid/1,
-%% 	 searchcount/2, searchout/2, encode_table/1, decode_table/1]).
+
+-export([connect/0, connect/1, put/3, putkeep/3, putcat/3, update/3, out/2,
+	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
+	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/3, adddouble/4,
+	 setmst/3, setindex/3, query_limit/3, query_limit/2, query_condition/4,
+	 query_order/3, search/2, genuid/1, searchcount/2, searchout/2,
+	 encode_table/1, decode_table/1]).
 %%-export([table/1])  % Not tested yet
 
 -define(NULL, <<0:8>>).
@@ -444,10 +444,10 @@ genuid(Socket) ->
 	    Error
     end.
 
-%% @spec query_add_condition(Query::proplist(),
-%%                           ColName::iolist(),
-%%                           Op::query_op(),
-%%                           ExprList::query_expr()) -> proplist()
+%% @spec query_condition(Query::proplist(),
+%%                       ColName::iolist(),
+%%                       Op::query_op(),
+%%                       ExprList::query_expr()) -> proplist()
 %%
 %% @doc
 %% Add a condition for a query.  ExprList should be a list of one or more
@@ -457,72 +457,90 @@ genuid(Socket) ->
 %% the last atom is no_index an existing index on the remote database server will
 %% be bypassed.
 %% @end
-query_add_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
-    [{add_cond, {ColName, 
-		 add_condition_op_val(Op), 
-		 convert_query_exprlist(ExprList)}} | Query].
+query_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
+    [{{add_cond, ColName, Op, ExprList}, 
+      ["addcond", 
+       ?NULL, 
+       ColName, 
+       ?NULL, 
+       integer_to_list(add_condition_op_val(Op)), 
+       ?NULL, 
+       convert_query_exprlist(ExprList)]
+     } | Query].
 
-%% @spec query_set_limit(Query::proplist(),
-%%                       Max::integer(),
-%%                       Skip::integer()) -> proplist()
+%% @spec query_limit(Query::proplist(),
+%%                   Max::integer(),
+%%                   Skip::integer()) -> proplist()
 %%
 %% @doc Set a limit on the number of returned values for Query, skip the first Skip records.
-query_set_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), Skip >= 0 ->
-    case proplists:is_defined(set_limit, Query) of
-	true ->
-	    ClearedQuery = proplists:delete(set_limit, Query),
-	    [{set_limit, {Max, Skip}} | ClearedQuery];
+query_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), Skip >= 0 ->
+    LimitKey = {set_limit, Max, Skip},
+    LimitValue = ["setlimit", 
+		?NULL, 
+		integer_to_list(Max), 
+		?NULL, 
+		integer_to_list(Skip)],
+    case lists:keyfind(set_limit, 1, proplists:get_keys(Query)) of
 	false ->
-	    [{set_limit, {Max, Skip}} | Query]
+	    [{LimitKey, LimitValue} | Query];
+	ExistingKey ->
+	    [{LimitKey, LimitValue} | proplists:delete(ExistingKey, Query)]
     end.
 
-%% @spec query_set_limit(Query::proplist(),
-%%                       Max::integer()) -> proplist()
+%% @spec query_limit(Query::proplist(),
+%%                   Max::integer()) -> proplist()
 %%
 %% @doc Set a limit on the number of returned values for Query.
 %%
 %% XXX: should the missing skip be 0 or -1 (protocol ref and perl versions seem to disagree)
-query_set_limit(Query, Max) ->
-    query_set_limit(Query, Max, 0).
+query_limit(Query, Max) ->
+    query_limit(Query, Max, 0).
 
-%% @spec query_set_order(Query::proplist(),
-%%                       primary | ColName::iolist(),
-%%                       Type::order_type()) -> proplist()
+%% @spec query_order(Query::proplist(),
+%%                   primary | ColName::iolist(),
+%%                   Type::order_type()) -> proplist()
 %%
 %% @doc Set the order for returned values in Query.
-query_set_order(Query, primary, Type) when is_atom(Type) ->
-    case proplists:is_defined(set_order, Query) of
-	true ->
-	    ClearedQuery = proplists:delete(set_order, Query),
-	    [{set_order, {?NULL, order_request_val(Type)}} | ClearedQuery];
+query_order(Query, primary, Type) when is_atom(Type) ->
+    OrderKey = {set_order, primary, Type},
+    OrderValue = ["setorder", 
+		  ?NULL, 
+		  ?NULL, 
+		  ?NULL, 
+		  integer_to_list(order_request_val(Type))],
+    case lists:keyfind(set_order, 1, proplists:get_keys(Query)) of
 	false ->
-	    [{set_order, {?NULL, order_request_val(Type)}} | Query]
+	    [{OrderKey, OrderValue} | Query];
+	ExistingKey ->
+	    [{OrderKey, OrderValue} | proplists:delete(ExistingKey, Query)]
     end;
-query_set_order(Query, ColName, Type) when is_atom(Type) ->
-    case proplists:is_defined(set_order, Query) of
-	true ->
-	    ClearedQuery = proplists:delete(set_order, Query),
-	    [{set_order, {ColName, order_request_val(Type)}} | ClearedQuery];
+query_order(Query, ColName, Type) when is_atom(Type) ->
+    OrderKey = {set_order, ColName, Type},
+    OrderValue = ["setorder", 
+		  ?NULL, 
+		  ColName, 
+		  ?NULL, 
+		  integer_to_list(order_request_val(Type))],
+    case lists:keyfind(set_order, 1, proplists:get_keys(Query)) of
 	false ->
-	    [{set_order, {ColName, order_request_val(Type)}} | Query]
+	    [{OrderKey, OrderValue} | Query];
+	ExistingKey ->
+	    [{OrderKey, OrderValue} | proplists:delete(ExistingKey, Query)]
     end.
 
 %% @spec search(Socket::port,
-%%              TblQuery::proplist()) -> keylist() | error()
+%%              Query::proplist()) -> keylist() | error()
 %%
 %% @doc Run a prepared query against the table and return matching keys.
-search(Socket, TblQuery) ->
-    SearchQuery = query_to_argslist(TblQuery),
-    ?TRaw(<<"search">>, SearchQuery).
+search(Socket, Query) ->
+    ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2]).
 
 %% @spec searchcount(Socket::port,
-%%                   TblQuery::proplist()) -> [integer()] | error()
+%%                   Query::proplist()) -> [integer()] | error()
 %%
 %% @doc Run a prepared query against the table and get the count of matching keys.
-searchcount(Socket, TblQuery) ->
-    SearchQuery = query_to_argslist(TblQuery),
-    CountQuery = SearchQuery ++ ["count"],
-    case ?TRaw(<<"search">>, CountQuery) of
+searchcount(Socket, Query) ->
+    case ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2] ++ ["count"]) of
 	{error, Reason} ->
 	    {error, Reason};
 	[] ->
@@ -532,13 +550,11 @@ searchcount(Socket, TblQuery) ->
     end.
 
 %% @spec searchout(Socket::port,
-%%                 TblQuery::proplist()) -> ok | error()
+%%                 Query::proplist()) -> ok | error()
 %%
 %% @doc Run a prepared query against the table and remove the matching records.
-searchout(Socket, TblQuery) ->
-    SearchQuery = query_to_argslist(TblQuery),
-    OutQuery = SearchQuery ++ ["out"],
-    ?TSimple(<<"search">>, OutQuery).
+searchout(Socket, Query) ->
+    ?TSimple(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2] ++ ["out"]).
 
 %% %% Run a prepared query against the table and get the matching records.  Due
 %% %% to protocol restraints, the returned result cannot include columns whose
@@ -636,50 +652,18 @@ convert_query_exprlist(ExprList) ->
 
 convert_query_exprlist([H | T], []) when is_integer(H) ->
     convert_query_exprlist(T, [integer_to_list(H)]);
+convert_query_exprlist([H | T], []) when is_binary(H) ->
+    convert_query_exprlist(T, [binary_to_list(H)]);
 convert_query_exprlist([H | T], []) ->
     convert_query_exprlist(T, [H]);
 convert_query_exprlist([H | T], Acc) when is_integer(H) ->
     convert_query_exprlist(T, [integer_to_list(H) | ["," | Acc]]);
+convert_query_exprlist([H | T], Acc) when is_binary(H) ->
+    convert_query_exprlist(T, [binary_to_list(H) | ["," | Acc]]);
 convert_query_exprlist([H | T], Acc) ->
     convert_query_exprlist(T, [H | ["," | Acc]]);
 convert_query_exprlist([], Acc) ->
     lists:reverse(Acc).
-
-%% @spec query_to_arglist(proplist()) -> [iolist()]
-%%
-%% @private Convert query proplist to an iolist of all its component elements.
-query_to_argslist(QueryProplist) ->
-    query_to_argslist(QueryProplist, []).
-
-query_to_argslist([{K, V} | T], BinArgs) ->
-    case K of
-	add_cond ->
-	    {ColName, Op, ExprList} = V,
-	    query_to_argslist(T, [["addcond", 
-				   ?NULL, 
-				   ColName, 
-				   ?NULL, 
-				   integer_to_list(Op), 
-				   ?NULL, 
-				   ExprList] | BinArgs]);
-	set_limit ->
-	    % XXX: check spec to see if the max and skip should be integers or chars
-	    {Max, Skip} = V,
-	    query_to_argslist(T, [["setlimit", 
-				   ?NULL, 
-				   integer_to_list(Max), 
-				   ?NULL, 
-				   integer_to_list(Skip)] | BinArgs]);
-	set_order ->
-            {ColName, Type} = V,
-	    query_to_argslist(T, [["setorder", 
-				   ?NULL, 
-				   ColName, 
-				   ?NULL, 
-				   integer_to_list(Type)] | BinArgs])
-    end;
-query_to_argslist([], BinArgs) ->
-    lists:reverse(BinArgs).
 
 %% @spec encode_table(proplist()) -> [value_or_num()]
 %%
