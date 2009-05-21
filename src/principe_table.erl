@@ -459,7 +459,7 @@ genuid(Socket) ->
 %% @end
 query_add_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
     [{add_cond, {ColName, 
-		 integer_to_list(add_condition_op_val(Op)), 
+		 add_condition_op_val(Op), 
 		 convert_query_exprlist(ExprList)}} | Query].
 
 %% @spec query_set_limit(Query::proplist(),
@@ -655,14 +655,28 @@ query_to_argslist([{K, V} | T], BinArgs) ->
     case K of
 	add_cond ->
 	    {ColName, Op, ExprList} = V,
-	    query_to_argslist(T, [["addcond", ?NULL, ColName, ?NULL, Op, ?NULL, ExprList] | BinArgs]);
+	    query_to_argslist(T, [["addcond", 
+				   ?NULL, 
+				   ColName, 
+				   ?NULL, 
+				   integer_to_list(Op), 
+				   ?NULL, 
+				   ExprList] | BinArgs]);
 	set_limit ->
 	    % XXX: check spec to see if the max and skip should be integers or chars
-	    {M, S} = V,
-	    query_to_argslist(T, [["setlimit", ?NULL, <<M:32>>, ?NULL, <<S:32>>] | BinArgs]);
+	    {Max, Skip} = V,
+	    query_to_argslist(T, [["setlimit", 
+				   ?NULL, 
+				   integer_to_list(Max), 
+				   ?NULL, 
+				   integer_to_list(Skip)] | BinArgs]);
 	set_order ->
             {ColName, Type} = V,
-	    query_to_argslist(T, [["setorder", ?NULL, ColName, ?NULL, Type] | BinArgs])
+	    query_to_argslist(T, [["setorder", 
+				   ?NULL, 
+				   ColName, 
+				   ?NULL, 
+				   integer_to_list(Type)] | BinArgs])
     end;
 query_to_argslist([], BinArgs) ->
     lists:reverse(BinArgs).

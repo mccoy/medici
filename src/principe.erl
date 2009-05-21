@@ -621,6 +621,20 @@ ext(Socket, Func, Opts, Key, Value) ->
 
 tyrant_response(Socket, ResponseHandler) ->
     receive
+	{tcp, Socket, <<1:8, _Rest/binary>>} ->
+	    {error, invalid_operation};
+	{tcp, Socket, <<2:8, _Rest/binary>>} ->
+	    {error, no_host_found};
+	{tcp, Socket, <<3:8, _Rest/binary>>} ->
+	    {error, connection_refused};
+	{tcp, Socket, <<4:8, _Rest/binary>>} ->
+	    {error, send_error};
+	{tcp, Socket, <<5:8, _Rest/binary>>} ->
+	    {error, recv_error};
+	{tcp, Socket, <<6:8, _Rest/binary>>} ->
+	    {error, existing_record};
+	{tcp, Socket, <<7:8, _Rest/binary>>} ->
+	    {error, no_such_record};
         {tcp, Socket, <<ErrorCode:8, _Rest/binary>>} when ErrorCode =/= 0 ->
 	    {error, ErrorCode};
         {tcp_closed, Socket} -> 

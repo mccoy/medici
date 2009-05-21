@@ -191,8 +191,8 @@ query_generation_test(Mod) ->
     [{set_order, {"foo", 0}}] = Mod:query_set_order([{set_order, blah}], "foo", str_ascending),
     [{set_limit, {2, 0}}] = Mod:query_set_limit([], 2),
     [{set_limit, {4, 1}}] = Mod:query_set_limit([{set_limit, blah}], 4, 1),
-    [{add_cond, {"foo", "0", ["bar"]}}] = Mod:query_add_condition([], "foo", str_eq, ["bar"]),
-    [{add_cond, {"foo", "16777220", ["bar",",","baz"]}}] = 
+    [{add_cond, {"foo", 0, ["bar"]}}] = Mod:query_add_condition([], "foo", str_eq, ["bar"]),
+    [{add_cond, {"foo", 16777220, ["bar",",","baz"]}}] = 
 	Mod:query_add_condition([], "foo", {no, str_and}, ["bar", "baz"]),
     ok.
 
@@ -200,5 +200,8 @@ search_test(Mod) ->
     Socket = setup_column_data(Mod),
     Query1 = Mod:query_add_condition([], "name", str_eq, ["alice"]),
     [<<"rec1">>] = Mod:search(Socket, Query1),
+    Query2 = Mod:query_add_condition([], "name", {no, str_eq}, ["alice"]),
+    Query2A = Mod:query_set_limit(Query2, 2),
+    [<<"rec2">>, <<"rec3">>] = Mod:search(Socket, Query2A),
     ok.
     
