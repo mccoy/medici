@@ -96,7 +96,7 @@
 %%
 %% @type key() = iolist()
 %% @type value() = iolist()
-%% @type value_or_num() == iolist() | integer() | float()
+%% @type value_or_num() = iolist() | integer() | float()
 %% @type keylist() = [key()]
 %% @type error() = {error, term()}
 
@@ -301,8 +301,8 @@ get(Socket, Key) ->
     ?T1(?GET),
     ?R_SIZE_DATA.
 
-%% @spec get(Socket::port(), 
-%%           Key::key()) -> integer() | error()
+%% @spec getint(Socket::port(), 
+%%              Key::key()) -> integer() | error()
 %%
 %% @doc Get the value for a given key as a 32 bit integer
 getint(Socket, Key) ->
@@ -321,8 +321,8 @@ getint(Socket, Key) ->
 	    end
     end.
 	    
-%% @spec get(Socket::port(), 
-%%           Key::key()) -> float() | error()
+%% @spec getfloat(Socket::port(), 
+%%                Key::key()) -> float() | error()
 %%
 %% @doc Get the value for a given key as a 64 bit float (C double)
 getfloat(Socket, Key) ->
@@ -355,7 +355,7 @@ mget(Socket, KeyList) when is_list(KeyList) ->
 %% @spec vsiz(Socket::port(),
 %%            Key::key()) -> integer()
 %%
-%% Get the size of the value for a given key.
+%% @doc Get the size of the value for a given key.
 vsiz(Socket, Key) ->
     ?T1(?VSIZ),
     ?R_INT32.
@@ -379,7 +379,7 @@ iternext(Socket) ->
 
 %% @spec fwmkeys(Socket::port(),
 %%               Prefix::iolist(),
-%%               MaxKeys::integer()) -> [Key()::binary()]
+%%               MaxKeys::integer()) -> [binary()]
 %%
 %% @doc Return a number of keys that match a given prefix.
 fwmkeys(Socket, Prefix, MaxKeys) when is_integer(MaxKeys) ->
@@ -528,7 +528,7 @@ setmst(Socket, HostName, Port) when is_integer(Port) ->
 %% @spec misc(Socket::port(),
 %%            Func::iolist(),
 %%            Args::arglist()) -> [binary()] | error()
-%% @type arglist = [iolist()]
+%% @type arglist() = [iolist()]
 %%
 %% @doc
 %% Tyrant misc() call that writes to the update logs
@@ -580,10 +580,10 @@ misc_arg_encode([Arg | Tail], ArgList) when is_float(Arg) ->
 misc_arg_encode([Arg | Tail], ArgList) ->
     misc_arg_encode(Tail, [[<<(iolist_size(Arg)):32>>, Arg] | ArgList]).
 
-%% @spec misc(Socket::port(),
-%%            Func::iolist(),
-%%            Args::arglist()) -> [binary()] | error()
-%% @type arglist = [iolist()]
+%% @spec misc_no_update(Socket::port(),
+%%                      Func::iolist(),
+%%                      Args::arglist()) -> [binary()] | error()
+%% @type arglist() = [iolist()]
 %%
 %% @doc Tyrant misc() call that does not write to the update logs
 misc_no_update(Socket, Func, Args) when length(Args) > 0 ->

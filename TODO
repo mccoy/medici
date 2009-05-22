@@ -13,3 +13,5 @@ instances (e.g. one for tyrant server A and one for tyrant server B)
 medici: add support for running the tyrant server directly within medici
 (as a port, with tyrant stdio logging going to the erlang logging facilities).
 
+finish doc/overview.edoc
+

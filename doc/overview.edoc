@@ -1,0 +1,37 @@
+@author Jim McCoy <jim.mccoy@gmail.com>
+@copyright 2009 Jim McCoy 
+@version 0.5
+@title Medici documentation
+
+@doc
+== Introduction ==
+
+Medici and the associated principe/principe_table modules are Erlang
+interfaces for the Tokyo Tyrant network database interface.  Principe
+provides a thin wrapper for the Tyrant TCP/IP protocol but does not do
+any connection management beyond providing a simple connect function.
+The medici application provides connection management, a non-blocking
+interface for the pool of principe connections, and standard OTP
+restart/fault-tolerance capabilities.
+
+== Using Principe ==
+
+If you just want a raw connection to a Tyrant server the principe
+module will provide an interface for hash, b+ tree, and fixed-length
+databases while the principe_table module will provide a similar
+functionality for the Tyrant table database.
+
+Bits about keys, values, and columns.
+
+Bits about endianness, why a parameterized module is used.
+
+== Using Medici ==
+
+How to use the medici application.
+
+== Configuration/Connection Options ==
+
+The various options available for setting configuration or connection
+parameters.
+
+@end

@@ -72,15 +72,15 @@
 %%
 %% @type key() = iolist()
 %% @type value() = iolist()
-%% @type value_or_num() == iolist() | integer() | float()
+%% @type value_or_num() = iolist() | integer() | float()
 %% @type keylist() = [key()]
 %% @type coldata() = [{key(), value_or_num()}]
 %% @type error() = {error, term()}
+%% @type index_col() = primary | iolist()
 %% @type index_type() = lexical | decimal | void
-%% @type query_opcode() = str_eq | str_inc| str_begin | str_end | str_and | str_or | str_regex | num_eq | num_gt | num_ge | num_lt | num_le | num_between | num_in_list
-%% @type query_op = query_opcode() | {no, query_opcode()} | {query_opcode(), no_index} | {no, query_opcode(), no_index}
-%% @type query_expr = [binary() | string() | integer()]
-%% @type order_type = str_ascending | str_descending | num_ascending | num_descending
+%% @type query_opcode() = atom() | tuple()
+%% @type query_expr() = [binary() | string() | integer()]
+%% @type order_type() = str_ascending | str_descending | num_ascending | num_descending
 
 %%====================================================================
 %% The Tokyo Tyrant access functions
@@ -249,7 +249,7 @@ iternext(Socket) ->
 
 %% @spec fwmkeys(Socket::port(),
 %%               Prefix::iolist(),
-%%               MaxKeys::integer()) -> [Key()::binary()]
+%%               MaxKeys::integer()) -> [binary()]
 %%
 %% @doc Return a number of keys that match a given prefix.
 fwmkeys(Socket, Prefix, MaxKeys) ->
@@ -418,8 +418,8 @@ get(Socket, Key) ->
     end.
 
 %% @spec setindex(Socket::port(),
-%%                primary | ColName::iolist(),
-%%                Type::index_type()) -> [] | error()
+%%                ColName::index_col(),
+%%                Type::index_type()) -> ok | error()
 %%
 %% @doc
 %% Tell the tyrant server to build an index for a column.  The ColName
@@ -446,7 +446,7 @@ genuid(Socket) ->
 
 %% @spec query_condition(Query::proplist(),
 %%                       ColName::iolist(),
-%%                       Op::query_op(),
+%%                       Op::query_opcode(),
 %%                       ExprList::query_expr()) -> proplist()
 %%
 %% @doc
@@ -497,7 +497,7 @@ query_limit(Query, Max) ->
     query_limit(Query, Max, 0).
 
 %% @spec query_order(Query::proplist(),
-%%                   primary | ColName::iolist(),
+%%                   ColName::index_col(),
 %%                   Type::order_type()) -> proplist()
 %%
 %% @doc Set the order for returned values in Query.
@@ -643,7 +643,7 @@ order_request_val(Type) ->
 	    ?QONUMDESC
     end.
 
-%% @spec convert_query_exprlist(query_expr()) -> [string() | ","]
+%% @spec convert_query_exprlist(query_expr()) -> [string()]
 %%
 %% @private 
 %% Convert query expression list to comma-seperated list of string values.
