@@ -6,21 +6,17 @@
 %%% @doc
 %%% An extension to the principe module that handles tables.  See the
 %%% principe module docs for a note about Tyrant and server byte-order
-%%% issues.  To deal with that particular issue, this module takes as a
-%%% parameter a parameterized version of the principe module that has been
-%%% set with the proper server endianness (this feels distressingly OO, but
-%%% given the inter-module refs I can't see a way around it...)  To get a
-%%% properly setup version of this module you would do something like the
-%%% following:
-%%%    G = PrincipeMod:new(little).
-%%%    T = principe_table:new(G).
-%%% and to use it do the following:
-%%%    {ok, ConnectedSocket} = T:connect(),
-%%%    T:put(ConnectedSocket, "key1", [{"col1", "val1}, {"col2", 2}]).
+%%% issues.  When using tyrant in table mode the only place that this
+%%% matters is using addint or adddouble in conjunction with a row in
+%%% which you manually added a magic "_num" column.  For this case you
+%%% will need to do a bit of magic on your own to properly encode the
+%%% float or int using the put() function.  See the principe module
+%%% for examples (use the "bigendian" property from a stat() call to
+%%% figure out what your server expects.)
 %%% @end
 %%%-------------------------------------------------------------------
 
--module(principe_table,[PrincipeMod]).
+-module(principe_table).
 
 -export([connect/0, connect/1, put/3, putkeep/3, putcat/3, update/3, out/2,
 	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
@@ -28,7 +24,6 @@
 	 setmst/3, setindex/3, query_limit/3, query_limit/2, query_condition/4,
 	 query_order/3, search/2, genuid/1, searchcount/2, searchout/2,
 	 encode_table/1, decode_table/1]).
-%%-export([table/1])  % Not tested yet
 
 -define(NULL, <<0:8>>).
 
@@ -62,14 +57,15 @@
 -define(QONUMDESC, 3).
 
 %% Some function patterns that are used frequently
--define(TSimple(Func, Args), case PrincipeMod:misc(Socket, Func, Args) of 
+-define(TSimple(Func, Args), case principe:misc(Socket, Func, Args) of 
 				 [] -> ok; 
 				 Error -> Error 
 			     end).
--define(TRaw(Func, Args), PrincipeMod:misc(Socket, Func, Args)).
+-define(TRaw(Func, Args), principe:misc(Socket, Func, Args)).
 
 %% Some standard types for edoc
 %%
+%% @type endian() = big | little
 %% @type key() = iolist()
 %% @type value() = iolist()
 %% @type value_or_num() = iolist() | integer() | float()
@@ -92,7 +88,7 @@
 %% Establish a connection to the tyrant service.
 %% @end
 connect() ->
-    PrincipeMod:connect().
+    principe:connect().
 
 %% @spec connect(ConnectProps::proplist()) -> {ok, port()} | error()
 %%
@@ -103,44 +99,7 @@ connect() ->
 %% in using the module defaults.
 %% @end
 connect(ConnectProps) ->
-    PrincipeMod:connect(ConnectProps).
-
-%% table(Socket) ->
-%%     TF = fun() -> qlc_next(firstitem(Socket)) end,
-%%     InfoFun = fun(num_of_objects) -> PrincipeMod:rnum(Socket);
-%%                  (keypos) -> 1;
-%%                  (is_sorted_key) -> false;
-%%                  (is_unique_objects) -> true;
-%%                  (_) -> undefined
-%%               end,
-%%     LookupFun =
-%%         fun(1, Keylist) ->
-%%                 PrincipeMod:mget(Socket, Keylist)
-%%         end,
-%%     qlc:table(TF, [{info_fun, InfoFun}, {lookup_fun, LookupFun},{key_equality,'=='}]).
-
-%% %% Helper functions for the qlc_next function
-%% firstitem(Socket) ->
-%%     ok = PrincipeMod:iterinit(Socket),
-%%     case PrincipeMod:iternext(Socket) of
-%% 	{error, _ErrCode} ->
-%% 	    none;
-%% 	Key ->
-%% 	    {Key, PrincipeMod:get(Socket, Key), Socket}
-%%     end.
-%% nextitem({_K, _V, Socket}) ->
-%%     case PrincipeMod:iternext(Socket) of
-%% 	{error, _ErrCode} ->
-%% 	    none;
-%% 	Key ->
-%% 	    {Key, PrincipeMod:get(Socket, Key), Socket}
-%%     end.
-
-%% %% The traversal function used by table/1
-%% qlc_next({X, V, S}) ->
-%%     [{X,V} | fun() -> qlc_next(nextitem({X, V, S})) end];
-%% qlc_next(none) ->
-%%     [].
+    principe:connect(ConnectProps).
 
 %%====================================================================
 %%  Standard tyrant functions (straight pass-through to principe.erl)
@@ -153,7 +112,7 @@ connect(ConnectProps) ->
 %% Get the values for a list of keys.  Due to the way that columns are returned
 %% via the tyrant protocol a null seperator is used to break 
 mget(Socket, KeyList) ->
-    case PrincipeMod:mget(Socket, KeyList) of
+    case principe:mget(Socket, KeyList) of
 	{error, Reason} ->
 	    {error, Reason};
 	MgetResults ->
@@ -211,7 +170,7 @@ return_column_vals([K, V | Tail], Cols) ->
 %% things will work correctly.
 %% @end
 addint(Socket, Key, Int) ->
-    PrincipeMod:addint(Socket, Key, Int).
+    principe:addint(Socket, Key, Int).
 
 %% @spec adddouble(Socket::port(),
 %%                 Key::key(),
@@ -221,7 +180,7 @@ addint(Socket, Key, Int) ->
 %% _num column will be created if it does not already exist.
 %% @end
 adddouble(Socket, Key, Double) ->
-    PrincipeMod:adddouble(Socket, Key, Double).
+    principe:adddouble(Socket, Key, Double).
 
 %% @spec adddouble(Socket::port(),
 %%                 Key::key(),
@@ -230,7 +189,7 @@ adddouble(Socket, Key, Double) ->
 %%
 %% @doc The raw adddouble function for those who need a bit more control on float adds.
 adddouble(Socket, Key, Integral, Fractional) ->
-    PrincipeMod:adddouble(Socket, Key, Integral, Fractional).    
+    principe:adddouble(Socket, Key, Integral, Fractional).    
 
 %% @spec iterinit(Socket::port()) -> ok | error()
 %%
@@ -239,13 +198,13 @@ adddouble(Socket, Key, Integral, Fractional) ->
 %% they will stomp all over each other!
 %% @end
 iterinit(Socket) ->
-    PrincipeMod:iterinit(Socket).
+    principe:iterinit(Socket).
 
 %% @spec iternext(Socket::port()) -> {Key::binary(), Value::binary()} | error()
 %%
 %% @doc Get the next key/value pair in the iteration protocol.
 iternext(Socket) ->
-    PrincipeMod:iternext(Socket).
+    principe:iternext(Socket).
 
 %% @spec fwmkeys(Socket::port(),
 %%               Prefix::iolist(),
@@ -253,7 +212,7 @@ iternext(Socket) ->
 %%
 %% @doc Return a number of keys that match a given prefix.
 fwmkeys(Socket, Prefix, MaxKeys) ->
-    PrincipeMod:fwmkeys(Socket, Prefix, MaxKeys).
+    principe:fwmkeys(Socket, Prefix, MaxKeys).
 
 %% @spec vsiz(Socket::port(),
 %%            Key::key()) -> integer()
@@ -268,42 +227,42 @@ fwmkeys(Socket, Prefix, MaxKeys) ->
 %% column.)
 %% @end
 vsiz(Socket, Key) ->
-    PrincipeMod:vsiz(Socket, Key).
+    principe:vsiz(Socket, Key).
 
 %% @spec sync(Socket::port()) -> ok | error()
 %%
 %% @doc Call sync() on the remote database.
 sync(Socket) ->
-    PrincipeMod:sync(Socket).
+    principe:sync(Socket).
 
 %% @spec vanish(Socket::port()) -> ok | error()
 %%
 %% @doc Remove all records from the remote database.
 vanish(Socket) ->
-    PrincipeMod:vanish(Socket).
+    principe:vanish(Socket).
 
 %% Get the number of records in the remote database
 rnum(Socket) ->
-    PrincipeMod:rnum(Socket).
+    principe:rnum(Socket).
 
 %% @spec size(Socket::port()) -> integer() | error()
 %%
 %% @doc Get the size in bytes of the remote database.
 size(Socket) ->
-    PrincipeMod:size(Socket).
+    principe:size(Socket).
 
 %% @spec stat(Socket::port()) -> proplist() | error()
 %%
 %% @doc Get the status string of a remote database.
 stat(Socket) ->
-    PrincipeMod:stat(Socket).
+    principe:stat(Socket).
 
 %% @spec copy(Socket::port(), 
 %%            iolist()) -> ok | error()
 %%
 %% @doc Make a copy of the database file of the remote database.
 copy(Socket, PathName) ->
-    PrincipeMod:copy(Socket, PathName).
+    principe:copy(Socket, PathName).
 
 %% @spec restore(Socket::port(), 
 %%               PathName::iolist(), 
@@ -311,7 +270,7 @@ copy(Socket, PathName) ->
 %%
 %% @doc Restore the database to a particular point in time from the update log.
 restore(Socket, PathName, TimeStamp) ->
-    PrincipeMod:restore(Socket, PathName, TimeStamp).
+    principe:restore(Socket, PathName, TimeStamp).
 
 %% @spec setmst(Socket::port(), 
 %%              HostName::iolist(), 
@@ -319,7 +278,7 @@ restore(Socket, PathName, TimeStamp) ->
 %%
 %% @doc Set the replication master of a remote database server.
 setmst(Socket, HostName, Port) ->
-    PrincipeMod:setmst(Socket, HostName, Port).
+    principe:setmst(Socket, HostName, Port).
 
 %%====================================================================
 %%  Table functions
@@ -377,7 +336,7 @@ putcat(Socket, Key, Cols) ->
 %%
 %% TODO: better way would be to use a lua server script to perform the merge?
 update(Socket, Key, Cols) ->
-    case PrincipeMod:misc(Socket, <<"get">>, [Key]) of
+    case principe:misc(Socket, <<"get">>, [Key]) of
 	{error, _Reason} ->
 	    UpdatedProps = Cols;
 	ExistingData ->
