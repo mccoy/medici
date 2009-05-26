@@ -23,7 +23,7 @@
 -define(DEBUG_LOG(_Msg, _Args), void).
 -endif.
 
--record(state, {socket, mod, controller}).
+-record(state, {socket, mod, endian, controller}).
 
 %%====================================================================
 %% API
@@ -50,24 +50,21 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init(ClientProps) ->
-    TmpMod = principe:new(bad_val),
-    {ok, Sock} = TmpMod:connect(ClientProps),
+    {ok, Sock} = principe:connect(ClientProps),
     case get_db_type(Sock) of
 	{ok, Endian, table} ->
-	    Principe = principe:new(Endian),
-	    DbType = principe_table:new(Principe);
-	{ok, big, _} ->
-	    DbType = principe:new(big);
-	{ok, little, _} ->
-	    DbType = principe:new(little);
+	    Controller = proplists:get_value(controller, ClientProps, ?DEFAULT_CONTROLLER),
+	    Controller ! {client_start, self()},
+	    process_flag(trap_exit, true),
+	    {ok, #state{socket=Sock, mod=principe_table, endian=Endian, controller=Controller}};
+	{ok, Endian, _} ->
+	    Controller = proplists:get_value(controller, ClientProps, ?DEFAULT_CONTROLLER),
+	    Controller ! {client_start, self()},
+	    process_flag(trap_exit, true),
+	    {ok, #state{socket=Sock, mod=principe, endian=Endian, controller=Controller}};
 	{error, _} ->
-	    DbType = nil,   % eliminate a spurious compiler warning...
 	    {stop, connect_failure}
-    end,
-    Controller = proplists:get_value(controller, ClientProps, ?DEFAULT_CONTROLLER),
-    Controller ! {client_start, self()},
-    process_flag(trap_exit, true),
-    {ok, #state{socket=Sock, mod=DbType, controller=Controller}}.
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -167,8 +164,8 @@ handle_cast({From, CallFunc, Arg1, Arg2, Arg3, Arg4}=Request, State) when is_ato
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(Info, State) ->
-    ?DEBUG_LOG("An unknown info message was received: ~w~n", [Info]),
+handle_info(_Info, State) ->
+    ?DEBUG_LOG("An unknown info message was received: ~w~n", [_Info]),
     %%% XXX: does this handle tcp connection closed events?
     {noreply, State}.
 
@@ -180,6 +177,8 @@ handle_info(Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
+    Module = State#state.mod,
+    Module:sync(State#state.socket),
     gen_tcp:close(State#state.socket),
     State#state.controller ! {client_end, self()},
     ok.

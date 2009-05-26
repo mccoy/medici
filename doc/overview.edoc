@@ -21,15 +21,62 @@ module will provide an interface for hash, b+ tree, and fixed-length
 databases while the principe_table module will provide a similar
 functionality for the Tyrant table database.
 
-Bits about keys, values, and columns.
+=== Keys, Values, and Columns ===
 
-Bits about endianness, why a parameterized module is used.
+All keys for principle and principe_table are iolists.  Values can be
+iolists, integers, and floats.  For the principle_table module the
+names of columns are iolists, but care should be taken to try to avoid
+using column names that contain null characters.  A null byte is used
+by tyrant to separate column names from values and things can get
+confused quite quickly if a column is given a name that contains a
+null.  Just don't do it.
+
+Returned data is always a binary, list of binaries, or proplist with
+binaries as keys and values.
+
+=== Principe Connection Parameters ===
+
+The principe connect() function accepts a proplist argument that
+contains information regarding how to connect to the remote database.
+If a property with the atom "hostname" as its key exists then principe
+will connect to the host name or IP address provided as a string
+value.  If a property with the atom "port" as its key exists then
+principe will connect to the port number provided as the integer value
+of this property.  If the proplist contains a connect_opts property
+with a list of gen_tcp:connect() options at its value then that value
+will be used when opening the connection to the remote database.  The
+default values for these parameters is the following:
+```
+  {hostname, "127.0.0.1"}
+  {port, 1978}
+  {connect_opts,  [binary, {packet, 0}, {nodelay, true}, {active, true},
+  {keepalive, true}]}
+'''
+
+=== A Note About Byte-Order ===
+
+While the Tyrant protocol itself uses network byte-order, the on-disk
+storage by the Tokyo Cabinet back-end will be done using the host
+byte-order for the server.  In most cases byte-order differences
+between the client and server does not matter too much, but there are
+a few cases, such as functions to add integers or doubles to existing
+values on the server, where server byte-order matters.  For these
+use-cases the principe module supports put and get operations that
+accept an additional optional parameter to tell the function what
+byte-order to use when encoding integers and floats to be sent to the
+remote database.
+
+If you do not intend on using clients on systems whose byte-order
+differs from the server, nor intend on using the addint() or
+addfloat() functions to increment values then you can safely ignore
+the whole byte-order issue.
 
 == Using Medici ==
 
 How to use the medici application.
 
-== Configuration/Connection Options ==
+
+=== Configuration/Connection Options ===
 
 The various options available for setting configuration or connection
 parameters.

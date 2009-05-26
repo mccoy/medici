@@ -6,11 +6,13 @@
 %%% @doc
 %%% An extension to the principe module that handles tables.  See the
 %%% principe module docs for a note about Tyrant and server byte-order
-%%% issues.  When using tyrant in table mode the only place that this
+%%% issues.  When using tyrant in table mode this matters far less than
+%%% it does for Tyrant in other modes; in most cases Tyrant will encode
+%%% table column values internally as strings. The only place that this
 %%% matters is using addint or adddouble in conjunction with a row in
 %%% which you manually added a magic "_num" column.  For this case you
 %%% will need to do a bit of magic on your own to properly encode the
-%%% float or int using the put() function.  See the principe module
+%%% float or int using the put() function.  See the @see principe module
 %%% for examples (use the "bigendian" property from a stat() call to
 %%% figure out what your server expects.)
 %%% @end
@@ -88,7 +90,7 @@
 %% Establish a connection to the tyrant service.
 %% @end
 connect() ->
-    principe:connect().
+    connect([]).
 
 %% @spec connect(ConnectProps::proplist()) -> {ok, port()} | error()
 %%
@@ -99,7 +101,14 @@ connect() ->
 %% in using the module defaults.
 %% @end
 connect(ConnectProps) ->
-    principe:connect(ConnectProps).
+    {ok, Socket} = principe:connect(ConnectProps),
+    % make sure we are connection to a tyrant server in table mode
+    case proplists:get_value(type, principe:stat(Socket)) of
+	"table" ->
+	    {ok, Socket};
+	_ ->
+	    {error, no_table_server}
+    end.
 
 %%====================================================================
 %%  Standard tyrant functions (straight pass-through to principe.erl)
