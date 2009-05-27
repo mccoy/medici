@@ -99,7 +99,7 @@ handle_cast({From, CallFunc}=Request, State) when is_atom(CallFunc) ->
 	    {stop, connection_error, State};
 	_ ->
 	    gen_server:reply(From, Result),
-	    {noreply, state}
+	    {noreply, State}
     end;
 handle_cast({From, CallFunc, Arg1}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
@@ -113,7 +113,7 @@ handle_cast({From, CallFunc, Arg1}=Request, State) when is_atom(CallFunc) ->
 	    {stop, connection_error, State};
 	_ ->
 	    gen_server:reply(From, Result),
-	    {noreply, state}
+	    {noreply, State}
     end;
 handle_cast({From, CallFunc, Arg1, Arg2}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
@@ -127,7 +127,7 @@ handle_cast({From, CallFunc, Arg1, Arg2}=Request, State) when is_atom(CallFunc) 
 	    {stop, connection_error, State};
 	_ ->
 	    gen_server:reply(From, Result),
-	    {noreply, state}
+	    {noreply, State}
     end;
 handle_cast({From, CallFunc, Arg1, Arg2, Arg3}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
@@ -141,7 +141,7 @@ handle_cast({From, CallFunc, Arg1, Arg2, Arg3}=Request, State) when is_atom(Call
 	    {stop, connection_error, State};
 	_ ->
 	    gen_server:reply(From, Result),
-	    {noreply, state}
+	    {noreply, State}
     end;
 handle_cast({From, CallFunc, Arg1, Arg2, Arg3, Arg4}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
@@ -155,7 +155,7 @@ handle_cast({From, CallFunc, Arg1, Arg2, Arg3, Arg4}=Request, State) when is_ato
 	    {stop, connection_error, State};
 	_ ->
 	    gen_server:reply(From, Result),
-	    {noreply, state}
+	    {noreply, State}
     end.
 
 %%--------------------------------------------------------------------

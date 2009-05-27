@@ -8,7 +8,6 @@
 %%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %%% the License for the specific language governing rights and limitations
 %%% under the License.
-
 %%%-------------------------------------------------------------------
 %%% File:      principe.erl
 %%% @author    Jim McCoy <mccoy@mad-scientist.com>
@@ -108,7 +107,7 @@
 -define(XOLCKREC, 1 bsl 0).
 -define(XOLCKGLB, 1 bsl 1).
 
-%% Some function patterns that are used frequently.
+%% Macros for function patterns that are used frequently.
 -define(T0(Code), gen_tcp:send(Socket, [<<Code:16>>])).
 -define(T1(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, Key])).
 -define(T2(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, <<(iolist_size(Value)):32>>, Key, Value])).
@@ -116,15 +115,6 @@
 -define(R_INT32, tyrant_response(Socket, fun recv_size/2)).
 -define(R_SIZE_DATA, tyrant_response(Socket, fun recv_size_data/2)).
 -define(R_INT64, tyrant_response(Socket, fun recv_size64/2)).
-
-%% Some standard types for edoc
-%%
-%% @type key() = iolist()
-%% @type value() = iolist()
-%% @type value_or_num() = iolist() | integer() | float()
-%% @type keylist() = [key()]
-%% @type error() = {error, term()}
-%% @type endian() = little | big
 
 %%====================================================================
 %% The Tokyo Tyrant access functions
@@ -806,3 +796,13 @@ recv_until(_Socket, Bin, ReqLength) when byte_size(Bin) =:= ReqLength ->
 recv_until(_Socket, Bin, ReqLength) when byte_size(Bin) > ReqLength ->
     <<Required:ReqLength/binary, Rest/binary>> = Bin,
     {Required, Rest}.
+
+
+%% Some standard types for edoc
+%%
+%% @type key() = iolist()
+%% @type value() = iolist()
+%% @type value_or_num() = iolist() | integer() | float()
+%% @type keylist() = [key()]
+%% @type error() = {error, term()}
+%% @type endian() = little | big
