@@ -41,19 +41,29 @@ start_link(MediciProps) ->
 %% to find out about restart strategy, maximum restart frequency and child 
 %% specifications.
 %%--------------------------------------------------------------------
-init(MediciProps) ->
-    MediciController = {controller,
-			{medici_controller, start_link, MediciProps},
-			permanent,
-			2000,
-			worker,
-			[medici_controller]},
+init(MediciOpts) ->
+    case proplists:get_bool(native, MediciOpts) of
+	false ->
+	    MediciController = {controller,
+				{medici_controller, start_link, MediciOpts},
+				permanent,
+				2000,
+				worker,
+				[medici_controller]};
+	true ->
+	    MediciController = {controller,
+				{medici_native_controller, start_link, MediciOpts},
+				permanent,
+				2000,
+				worker,
+				[medici_native_controller]}
+    end,
     MediciConnSupervisor = {connection_supervisor,
-			      {medici_conn_sup, start_link, MediciProps},
-			      permanent, 
-			      infinity, 
-			      supervisor, 
-			      [medici_conn_sup]},
+			    {medici_conn_sup, start_link, MediciOpts},
+			    permanent, 
+			    infinity, 
+			    supervisor, 
+			    [medici_conn_sup]},
     {ok,{{one_for_all,1,10}, [MediciController, MediciConnSupervisor]}}.
 
 %%====================================================================

@@ -73,12 +73,42 @@ the whole byte-order issue.
 
 == Using Medici ==
 
-How to use the medici application.
+Once started the medici server will register itself using either the
+default name of 'medici' or another name that was provided as a
+configuration option.  To access the Tyrant server you send this
+process tuples whose first element is the operation to be performed
+and with additional elements that become the args for the Tyrant
+operation indicated by the first element.  For example, sending the
+tuple {put, "key1", "val1"} to medici will store "val1" with the key
+"key1".  You can also use gen_server:call() to access the medici
+service.
 
+The medici supervisory tree will handle the connections to the Tyrant
+server, retry requests when needed, and otherwise manage the interface
+to the Tyrant server so that you don't need to worry about it.
 
 === Configuration/Connection Options ===
 
 The various options available for setting configuration or connection
-parameters.
+parameters.  In addition to the hostname, port, connect_opts that are
+used by the principe/principe_table modules, the following options are
+used by the 
+
+controller: an atom that is used as the registered name for the medici
+service.
+
+native: a boolean value (false is assumed if property is not present
+in configuration options) that turns the medici service into an erlang
+term storage server.  Erlang terms will be used as the keys and all
+values returned will be erlang terms.  If the native flag is set in
+the configuration options the tyrant server cannot be of the table or
+fixed-length types.
+
+num_connections: an integer that tells the connection controler how
+many connection clients to keep active in the pool.  The default of 8
+is also the number of work threads that a tyrant server will start as
+its default, so if you change this number you should also start your
+tyrant server with an equivalent number of worker threads for best
+performance.
 
 @end

@@ -377,7 +377,7 @@ iterinit(Socket) ->
     ?T0(?ITERINIT),
     ?R_SUCCESS.
 
-%% @spec iternext(Socket::port()) -> {Key::binary(), Value::binary()} | error()
+%% @spec iternext(Socket::port()) -> Key::binary() | error()
 %%
 %% @doc Get the next key/value pair in the iteration protocol
 iternext(Socket) ->
