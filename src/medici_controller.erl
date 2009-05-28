@@ -10,7 +10,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start_link/1]).
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -28,11 +28,9 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link([]).
-
-start_link(ClientProps) ->
-    MyName = proplists:get_value(controller, ClientProps, ?DEFAULT_NAME),
-    gen_server:start_link({local, MyName}, ?MODULE, [ClientProps], []).
+    {ok, MediciOpts} = application:get_env(medici, options),
+    MyName = proplists:get_value(controller, MediciOpts, ?DEFAULT_NAME),
+    gen_server:start_link({local, MyName}, ?MODULE, MediciOpts, []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -129,5 +127,5 @@ dispatch_request(Request, State) when length(State#state.clients) =:= 1 ->
 dispatch_request(Request, State) ->
     [TgtClient | OtherClients] = State#state.clients,
     gen_server:cast(TgtClient, Request),
-    {noreply, State#state{clients=[OtherClients | TgtClient]}}.
+    {noreply, State#state{clients=OtherClients++[TgtClient]}}.
     

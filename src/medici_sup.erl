@@ -26,8 +26,8 @@
 start_link() ->
     supervisor:start_link(?MODULE, []).
 
-start_link(MediciProps) ->
-    supervisor:start_link(?MODULE, MediciProps).
+start_link(StartArgs) ->
+    supervisor:start_link(?MODULE, StartArgs).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -41,25 +41,26 @@ start_link(MediciProps) ->
 %% to find out about restart strategy, maximum restart frequency and child 
 %% specifications.
 %%--------------------------------------------------------------------
-init(MediciOpts) ->
+init(StartArgs) ->
+    {ok, MediciOpts} = application:get_env(medici, options),
     case proplists:get_bool(native, MediciOpts) of
 	false ->
 	    MediciController = {controller,
-				{medici_controller, start_link, MediciOpts},
+				{medici_controller, start_link, StartArgs},
 				permanent,
 				2000,
 				worker,
 				[medici_controller]};
 	true ->
 	    MediciController = {controller,
-				{medici_native_controller, start_link, MediciOpts},
+				{medici_native_controller, start_link, StartArgs},
 				permanent,
 				2000,
 				worker,
 				[medici_native_controller]}
     end,
     MediciConnSupervisor = {connection_supervisor,
-			    {medici_conn_sup, start_link, MediciOpts},
+			    {medici_conn_sup, start_link, StartArgs},
 			    permanent, 
 			    infinity, 
 			    supervisor, 

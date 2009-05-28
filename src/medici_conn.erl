@@ -10,7 +10,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start_link/1]).
+-export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -32,11 +32,9 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(ClientProps) ->
-    gen_server:start_link(?MODULE, [ClientProps], []).
-
 start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+    {ok, MediciOpts} = application:get_env(medici, options),
+    gen_server:start_link(?MODULE, MediciOpts, []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -196,8 +194,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% Query the remote end of the socket to get the remote database type
 get_db_type(Socket) when is_port(Socket) ->
-    TmpMod = principe:new(bad_val),
-    StatInfo = TmpMod:stat(Socket),
+    StatInfo = principe:stat(Socket),
     case StatInfo of
 	{error, Reason} ->
 	    {error, Reason};
