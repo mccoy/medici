@@ -1,10 +1,24 @@
-%%%-------------------------------------------------------------------
-%%% File    : medici_conn.erl
-%%% Author  : Jim McCoy <>
-%%% Description : principe connection handler and server
+%%% The contents of this file are subject to the Erlang Public License,
+%%% Version 1.1, (the "License"); you may not use this file except in
+%%% compliance with the License. You should have received a copy of the
+%%% Erlang Public License along with this software. If not, it can be
+%%% retrieved via the world wide web at http://www.erlang.org/.
 %%%
-%%% Created :  1 May 2009 by Jim McCoy <>
+%%% Software distributed under the License is distributed on an "AS IS"
+%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+%%% the License for the specific language governing rights and limitations
+%%% under the License.
 %%%-------------------------------------------------------------------
+%%% File:      medici_conn.erl
+%%% @author    Jim McCoy <mccoy@mad-scientist.com>
+%%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
+%%%
+%%% @doc
+%%% The medici_conn module handles a single principe connection to the Tyrant 
+%%% remote database.  If is a simple gen_server that will dispatch requests
+%%% to the remote database and exit if its connection to the remote database
+%%% closes so that its supervisor can start another connection handler.
+%%% @end
 -module(medici_conn).
 
 -behaviour(gen_server).
@@ -25,13 +39,8 @@
 
 -record(state, {socket, mod, endian, controller}).
 
-%%====================================================================
-%% API
-%%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+%% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
+%% @private Starts the connection handler
 start_link() ->
     {ok, MediciOpts} = application:get_env(medici, options),
     gen_server:start_link(?MODULE, MediciOpts, []).
@@ -40,23 +49,22 @@ start_link() ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
-init(ClientProps) ->
-    {ok, Sock} = principe:connect(ClientProps),
+%% @spec init(Args) -> {ok, State} | {stop, Reason}
+%% @private 
+%% Initiates the server. Basically decides if we are talking to a remote
+%% Tyrant database in table mode or hash/b-tree/fixed mode and sets the
+%% server to use the appropriate principe access module for its calls.
+%% @end
+init(MediciOpts) ->
+    {ok, Sock} = principe:connect(MediciOpts),
     case get_db_type(Sock) of
 	{ok, Endian, table} ->
-	    Controller = proplists:get_value(controller, ClientProps, ?DEFAULT_CONTROLLER),
+	    Controller = proplists:get_value(controller, MediciOpts, ?DEFAULT_CONTROLLER),
 	    Controller ! {client_start, self()},
 	    process_flag(trap_exit, true),
 	    {ok, #state{socket=Sock, mod=principe_table, endian=Endian, controller=Controller}};
 	{ok, Endian, _} ->
-	    Controller = proplists:get_value(controller, ClientProps, ?DEFAULT_CONTROLLER),
+	    Controller = proplists:get_value(controller, MediciOpts, ?DEFAULT_CONTROLLER),
 	    Controller ! {client_start, self()},
 	    process_flag(trap_exit, true),
 	    {ok, #state{socket=Sock, mod=principe, endian=Endian, controller=Controller}};
@@ -64,25 +72,17 @@ init(ClientProps) ->
 	    {stop, connect_failure}
     end.
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
+%% @spec handle_call(Request, From, State) -> {stop, Reason, State}
+%% @private 
+%% Handle call messages. Since none are expected (all calls should come in
+%% as casts) a call message will result in termination of the server.
+%% @end
 handle_call(Request, _From, State) ->
     ?DEBUG_LOG("Unknown call ~p~n", [Request]),
     {stop, {unknown_call, Request}, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
+%% @spec handle_cast(Msg, State) -> {noreply, State} | {stop, Reason, State}
+%% @private Handle cast messages to forward to the remote database
 handle_cast(stop, State) ->
     {stop, asked_to_stop, State};
 handle_cast({From, CallFunc}=Request, State) when is_atom(CallFunc) ->
@@ -156,24 +156,18 @@ handle_cast({From, CallFunc, Arg1, Arg2, Arg3, Arg4}=Request, State) when is_ato
 	    {noreply, State}
     end.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
+%% @spec handle_info(Info, State) -> {noreply, State}
+%% @private Handle all non call/cast messages (none are expected).
 handle_info(_Info, State) ->
     ?DEBUG_LOG("An unknown info message was received: ~w~n", [_Info]),
     %%% XXX: does this handle tcp connection closed events?
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
+%% @spec terminate(Reason, State) -> void()
+%% @private 
+%% Server termination.  Will sync remote database, close connection, and
+%% notify controller that it is shutting down.
+%% @end
 terminate(_Reason, State) ->
     Module = State#state.mod,
     Module:sync(State#state.socket),
@@ -181,18 +175,20 @@ terminate(_Reason, State) ->
     State#state.controller ! {client_end, self()},
     ok.
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
+%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% @private Convert process state when code is changed
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
-%%% Internal functions
+%% Internal functions
 %%--------------------------------------------------------------------
 
-%% Query the remote end of the socket to get the remote database type
+%% @spec get_db_type(Socket::port()) -> {error, Reason::term()} |
+%%                                      {ok, endian(), db_type()}
+%% @type endian() = little | big
+%% @type db_type() = hash | tree | fixed | table
+%% @private: Query the remote end of the socket to get the remote database type
 get_db_type(Socket) when is_port(Socket) ->
     StatInfo = principe:stat(Socket),
     case StatInfo of
