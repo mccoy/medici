@@ -33,7 +33,7 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link() ->
-    {ok, MediciOpts} = application:get_env(medici, options),
+    {ok, MediciOpts} = application:get_env(options),
     gen_server:start_link(?MODULE, MediciOpts, []).
 
 %%====================================================================

@@ -24,8 +24,7 @@
 	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, vanish/1,
 	 rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/3, adddouble/4,
 	 setmst/3, setindex/3, query_limit/3, query_limit/2, query_condition/4,
-	 query_order/3, search/2, genuid/1, searchcount/2, searchout/2,
-	 encode_table/1, decode_table/1]).
+	 query_order/3, search/2, genuid/1, searchcount/2, searchout/2]).
 
 -define(NULL, <<0:8>>).
 

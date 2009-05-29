@@ -43,7 +43,7 @@ start_link(StartArgs) ->
 %% specifications.
 %%--------------------------------------------------------------------
 init(StartArgs) ->
-    {ok, MediciOpts} = application:get_env(medici, options),
+    {ok, MediciOpts} = application:get_env(options),
     ClientCount = proplists:get_value(num_connections, MediciOpts, ?NUM_CLIENTS),
     case proplists:get_bool(native, MediciOpts) of
 	false ->

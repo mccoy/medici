@@ -28,7 +28,7 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link() ->
-    {ok, MediciOpts} = application:get_env(medici, options),
+    {ok, MediciOpts} = application:get_env(options),
     MyName = proplists:get_value(controller, MediciOpts, ?DEFAULT_NAME),
     gen_server:start_link({local, MyName}, ?MODULE, MediciOpts, []).
 

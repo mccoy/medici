@@ -42,7 +42,7 @@ start_link(StartArgs) ->
 %% specifications.
 %%--------------------------------------------------------------------
 init(StartArgs) ->
-    {ok, MediciOpts} = application:get_env(medici, options),
+    {ok, MediciOpts} = application:get_env(options),
     case proplists:get_bool(native, MediciOpts) of
 	false ->
 	    MediciController = {controller,
