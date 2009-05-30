@@ -28,7 +28,7 @@
 -module(medici).
 
 %% Starting and stopping the app
--export([start/0, start/1, stop/1]).
+-export([start/0, start/1, stop/0]).
 
 %% Basic API exports
 -export([put/2, putkeep/2, putcat/2, putshl/3, putnr/2, out/1, get/1, 
