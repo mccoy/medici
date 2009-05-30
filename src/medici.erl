@@ -1,16 +1,34 @@
-%%%-------------------------------------------------------------------
-%%% File    : medici.erl
-%%% Author  : Jim McCoy <>
-%%% Description : 
+%%% The contents of this file are subject to the Erlang Public License,
+%%% Version 1.1, (the "License"); you may not use this file except in
+%%% compliance with the License. You should have received a copy of the
+%%% Erlang Public License along with this software. If not, it can be
+%%% retrieved via the world wide web at http://www.erlang.org/.
 %%%
-%%% Created :  7 May 2009 by Jim McCoy <>
+%%% Software distributed under the License is distributed on an "AS IS"
+%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+%%% the License for the specific language governing rights and limitations
+%%% under the License.
 %%%-------------------------------------------------------------------
+%%% File:      medici.erl
+%%% @author    Jim McCoy <mccoy@mad-scientist.com>
+%%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
+%%%
+%%% @doc
+%%% This module provides the primary API for interfacing with the
+%%% medici application. These functions assume you are using the default 
+%%% registered name for the service and that you know what sort of remote database
+%%% you are talking to (e.g. don't make table-specific calls to a hash
+%%% database.) If you need byte-order specific ops, want to register the
+%%% controller with a different name, or want to run medici interfaces
+%%% to multiple remote databases within the same erlang VM the you should
+%%% update these or make your own versions to make the appropriate calls
+%%% to the controller.
+%%% @end
+
 -module(medici).
 
--behaviour(application).
-
-%% Application callbacks
--export([start/2, stop/1]).
+%% Starting and stopping the app
+-export([start/0, start/1, stop/1]).
 
 %% Basic API exports
 -export([put/2, putkeep/2, putcat/2, putshl/3, putnr/2, out/1, get/1, 
@@ -24,43 +42,30 @@
 	 searchout/1]).
 
 
-%%====================================================================
-%% Application callbacks
-%%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start(Type, StartArgs) -> {ok, Pid} |
-%%                                     {ok, Pid, State} |
-%%                                     {error, Reason}
-%% Description: This function is called whenever an application 
-%% is started using application:start/1,2, and should start the processes
-%% of the application. If the application is structured according to the
-%% OTP design principles as a supervision tree, this means starting the
-%% top supervisor of the tree.
-%%--------------------------------------------------------------------
-start(_Type, StartArgs) ->
-    medici_sup:start_link(StartArgs).
+%% @spec start() -> {ok, Pid} | Error:term()
+%%
+%% @doc Start the medici application.
+start() ->
+    application:start(medici).
 
-%%--------------------------------------------------------------------
-%% Function: stop(State) -> void()
-%% Description: This function is called whenever an application
-%% has stopped. It is intended to be the opposite of Module:start/2 and
-%% should do any necessary cleaning up. The return value is ignored. 
-%%--------------------------------------------------------------------
-stop(_State) ->
-    ok.
+%% @spec start(StartupOptions::proplist()) -> {ok, Pid} | Error:term()
+%%
+%% @doc 
+%% Start the medici application, using a provided proplist as a set of
+%% additional options for the medici application.  WARNING: If you use
+%% start/1 the options you provide will become the new default startup
+%% options until you restart your Erlang VM.
+%% @end
+start(StartupOptions) when is_list(StartupOptions) ->
+    {ok, AppEnvOptions} = application:get_env(medici, options),
+    CombinedOptions = [StartupOptions | AppEnvOptions],
+    MediciOptions = [{K, proplists:get_value(K, CombinedOptions)} || 
+			K <- proplists:get_keys(CombinedOptions)],
+    application:put_env(medici, {options, MediciOptions}),
+    application:start(medici).
 
-%%====================================================================
-%% Medici API
-%%====================================================================
-
-%%--------------------------------------------------------------------
-%% These API calls assume you are using the default registered name
-%% for the service and that you know what sort of reomte database
-%% you are talking to (e.g. don't make table-specific calls to a hash
-%% database and if you need byte-order specific ops then you should
-%% update these or make your own versions to make the appropriate calls
-%% to the controller.)
-%%--------------------------------------------------------------------
+stop() ->
+    application:stop(medici).
 
 put(Key, Value) ->
     gen_server:call(medici, {put, Key, Value}).
@@ -161,9 +166,3 @@ searchcount(Query) ->
 
 searchout(Query) ->
     gen_server:call(medici, {searchout, Query}).
-
-
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
