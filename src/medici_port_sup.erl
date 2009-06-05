@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% File    : medici_sup.erl
+%%% File    : medici_port_sup.erl
 %%% Author  : Jim McCoy <>
 %%% Description : 
 %%%
 %%% Created :  6 May 2009 by Jim McCoy <>
 %%%-------------------------------------------------------------------
--module(medici_sup).
+-module(medici_port_sup).
 
 -behaviour(supervisor).
 
@@ -15,7 +15,6 @@
 %% Supervisor callbacks
 -export([init/1]).
 
-
 %%====================================================================
 %% API functions
 %%====================================================================
@@ -24,7 +23,7 @@
 %% Description: Starts the supervisor
 %%--------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link(?MODULE, []).
+    start_link([]).
 
 start_link(StartArgs) ->
     supervisor:start_link(?MODULE, StartArgs).
@@ -42,43 +41,13 @@ start_link(StartArgs) ->
 %% specifications.
 %%--------------------------------------------------------------------
 init(StartArgs) ->
-    {ok, MediciOpts} = application:get_env(options),
-    case proplists:get_bool(native, MediciOpts) of
-	false ->
-	    MediciController = {controller,
-				{medici_controller, start_link, StartArgs},
-				permanent,
-				2000,
-				worker,
-				[medici_controller]};
-	true ->
-	    MediciController = {controller,
-				{medici_native_controller, start_link, StartArgs},
-				permanent,
-				2000,
-				worker,
-				[medici_native_controller]}
-    end,
-    MediciConnSupervisor = {connection_supervisor,
-			    {medici_conn_sup, start_link, StartArgs},
-			    permanent, 
-			    infinity, 
-			    supervisor, 
-			    [medici_conn_sup]},
-    case proplists:get_value(run_server, MediciOpts) of
-	undefined ->
-	    {ok,{{one_for_all,1,10}, [MediciController, 
-				      MediciConnSupervisor]}};
-	_ ->
-	    MediciPortSupervisor = {port_supervisor,
-				    {medici_port_sup, start_link, StartArgs},
-				    permanent,
-				    infinity,
-				    supervisor,
-				    [medici_port_sup]},
-	    {ok,{{one_for_all,1,10}, [MediciController, 
-				      MediciConnSupervisor, 
-				      MediciPortSupervisor]}}.
+    PortManager = [{medici_port_srv, 
+		    {medici_port_srv, start_link, StartArgs},
+		    permanent,
+		    2000,
+		    worker,
+		    [medici_port_srv]}],
+    {ok, {{one_for_one,10, 5}, PortManager}}.
 
 %%====================================================================
 %% Internal functions

@@ -65,12 +65,12 @@ init([]) ->
     {ok, PidMatch} = re:compile(?PID_REGEXP),
     case application:get_env(options) of
 	{ok, MediciOpts} ->
-	    process_flag(trap_exit, true),
-	    start_server(MediciOpts, #state{log_match=LogMatch,
-					    pid_match=PidMatch});
+	    ServerOpts = proplists:get_value(run_server, MediciOpts, []);
 	_ ->
-	    process_flag(trap_exit, true),
-	    start_server([], #state{log_match=LogMatch,
+	    ServerOpts = []
+    end,
+    process_flag(trap_exit, true),
+    start_server(ServerOpts, #state{log_match=LogMatch,
 				    pid_match=PidMatch})
     end.
 
@@ -117,8 +117,8 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-%% handle_info({'EXIT', Port, Reason}, #state{port=Port} = State) ->
-%%     {stop, {port_terminated, Reason}, State};
+handle_info({'EXIT', Port, Reason}, #state{port=Port} = State) ->
+    {stop, {port_terminated, Reason}, State};
 handle_info({Port, {data, {eol, StdOutMsg}}}, #state{port=Port} = State) ->
     parse_log_message(binary_to_list(StdOutMsg), State);
 handle_info(Info, State) ->
@@ -136,7 +136,6 @@ terminate({port_terminated, _Reason}, _State) ->
     ok;
 terminate(_Reason, State) ->
     kill_server(State).
-
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
