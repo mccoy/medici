@@ -27,15 +27,17 @@
 %%   port_opts - list of options to be used by open_port
 -record(state, {port=nil, 
 		options=[],
-		server_pid=0,
-	        log_match}).
+		pid=0,
+	        log_match,
+	        pid_match}).
 
--define(PORT_OPTS, [binary, use_stdio, stream, {line, 256}]).
--define(TYRANT_BIN, "/usr/local/bin/ttserver").
+-define(PORT_OPTS, [binary, use_stdio, stream, {line, 256}, hide]).
+-define(TYRANT_BIN, "/opt/local/bin/ttserver").
 -define(TYRANT_OPTS, []).
--define(DATA_FILE, "*"). % default to in-memory hash
+-define(DATA_FILE, "\"*\""). % default to in-memory hash (quote the *...)
 -define(TUNING_OPTS, []).
--define(LOG_REGEXP, "(\\S+)\\s+(\\S+)").
+-define(LOG_REGEXP, "\\S+\\t(\\S+)").
+-define(PID_REGEXP, "service started: (\\d+)").
 
 %%====================================================================
 %% API
@@ -59,10 +61,18 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, MediciOpts} = application:get_env(options),
-    {ok, RegExp} = re:compile(?LOG_REGEXP),
-    process_flag(trap_exit, true),
-    start_server(MediciOpts, #state{log_match=RegExp}).
+    {ok, LogMatch} = re:compile(?LOG_REGEXP),
+    {ok, PidMatch} = re:compile(?PID_REGEXP),
+    case application:get_env(options) of
+	{ok, MediciOpts} ->
+	    process_flag(trap_exit, true),
+	    start_server(MediciOpts, #state{log_match=LogMatch,
+					    pid_match=PidMatch});
+	_ ->
+	    process_flag(trap_exit, true),
+	    start_server([], #state{log_match=LogMatch,
+				    pid_match=PidMatch})
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -73,8 +83,8 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({get_opts}, _From, State) ->
-    {reply, {State#state.options}, State};
+handle_call({get_info}, _From, State) ->
+    {reply, {State#state.options, State#state.pid}, State};
 handle_call({restart, ServerOpts}, _From, State) ->
     case restart_server(ServerOpts, State) of
 	{ok, NewState} ->
@@ -107,12 +117,10 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'EXIT', Port, Reason}, #state{port=Port} = State) ->
-    {stop, {port_terminated, Reason}, State};
+%% handle_info({'EXIT', Port, Reason}, #state{port=Port} = State) ->
+%%     {stop, {port_terminated, Reason}, State};
 handle_info({Port, {data, {eol, StdOutMsg}}}, #state{port=Port} = State) ->
-    io:format("Got stdout: ~p~n", [StdOutMsg]),
-    parse_log_message(StdOutMsg, State#state.log_match),
-    {noreply, State};
+    parse_log_message(binary_to_list(StdOutMsg), State);
 handle_info(Info, State) ->
     io:format("unrecognized info message: ~p~n", [Info]),
     {noreply, State}.
@@ -142,7 +150,14 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 start_server(StartOpts, State) ->
     TyrantBin = proplists:get_value(tyrant_bin, StartOpts, ?TYRANT_BIN),
-    DataFileBase = proplists:get_value(data_file, StartOpts, ?DATA_FILE),
+    case proplists:get_value(data_file, StartOpts, ?DATA_FILE) of
+	"*" ->
+	    DataFileBase = "\"*\"";
+	"+" ->
+	    DataFileBase = "\"*\"";
+	OtherFile ->
+	    DataFileBase = OtherFile
+    end,
     TuningOpts = proplists:get_value(tuning_opts, StartOpts, ?TUNING_OPTS),
     case TuningOpts of
 	[] ->
@@ -154,41 +169,57 @@ start_server(StartOpts, State) ->
     TyrantOpts = proplists:get_value(tyrant_opts, StartOpts, ?TYRANT_OPTS),
     case TyrantOpts of
 	[] ->
-	    Port = open_port({spawn, TyrantBin ++ " " ++  
-			      DataFile}, PortOpts);
+	    TyrantCommand = TyrantBin ++ " " ++ DataFile;
 	_HasTyrantOpts ->
-	    Port = open_port({spawn, TyrantBin ++ " " ++ 
-			      TyrantOpts ++ " " ++ 
-			      DataFile}, PortOpts)
+	    TyrantCommand = TyrantBin ++ " " ++ TyrantOpts ++ " " ++ DataFile
     end,
+    Port = open_port({spawn, TyrantCommand}, PortOpts),
     {ok, #state{port=Port,
 		options=[{tyrant_bin, TyrantBin},
 			 {data_file, DataFileBase},
 			 {tuning_opts, TuningOpts},
 			 {tyrant_opts, TyrantOpts}],
-		server_pid=0,
-	        log_match=State#state.log_match}}.
+		pid=0,
+	        log_match=State#state.log_match,
+	        pid_match=State#state.pid_match}}.
 
-restart_server(StartOpts, State) when State#state.server_pid > 0, State#state.port =/= nil ->
+restart_server(StartOpts, State) when State#state.pid > 0, State#state.port =/= nil ->
     kill_server(State),
-    start_server(StartOpts, State#state{port=nil, server_pid=0}).
+    start_server(StartOpts, State#state{port=nil, pid=0}).
 
-kill_server(State) when State#state.server_pid > 0, State#state.port =/= nil ->
-    % close the port so we do not get an exit message
+kill_server(State) when State#state.pid > 0, State#state.port =/= nil ->
+    %%port_command(State#state.port, <<3:8>>),  % send ^C
     port_close(State#state.port),
-    % try a hard kill
-    %os:cmd("/bin/kill -9 " ++ State#state.server_pid),
+    os:cmd("/bin/kill -9 " ++ integer_to_list(State#state.pid)),
     ok;
 kill_server(State) when State#state.port =/= nil ->
     port_close(State#state.port);
 kill_server(_State) ->
     ok.
 
-parse_log_message(Message, RegExp) ->
-    case re:run(Message, RegExp, [{capture, all_but_first}]) of
+parse_log_message(Message, State) when State#state.pid =:= 0 ->
+    case re:run(Message, State#state.log_match, [{capture, all_but_first}]) of
 	{match, [{MsgStart, _MsgEnd}]} ->
 	    {_Head, TyrantMessage} = lists:split(MsgStart, Message),
-	    error_logger:info_msg("Tyrant: ~p~n", [TyrantMessage]);
+	    error_logger:info_msg("Tyrant: ~p~n", [TyrantMessage]),
+	    case re:run(TyrantMessage, State#state.pid_match, [{capture, all_but_first}]) of
+		{match, [{PidStart, _PidEnd}]} ->
+			{_PidHead, Pid} = lists:split(PidStart, TyrantMessage),
+			{noreply, State#state{pid=list_to_integer(Pid)}};
+		_ ->
+			{noreply, State}
+	    end;
 	_ ->
-	    error_logger:error_message("could not parse ~p~n", [Message])
+	    error_logger:error_message("Unexpected Tyrant output: ~p~n", [Message]),
+	    {noreply, State}
+    end;
+parse_log_message(Message, State) ->
+    case re:run(Message, State#state.log_match, [{capture, all_but_first}]) of
+	{match, [{MsgStart, _MsgEnd}]} ->
+	    {_Head, TyrantMessage} = lists:split(MsgStart, Message),
+	    error_logger:info_msg("Tyrant: ~p~n", [TyrantMessage]),
+	    {noreply, State};
+	_ ->
+	    error_logger:error_message("Unexpected Tyrant output: ~p~n", [Message]),
+	    {noreply, State}
     end.
