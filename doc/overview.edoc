@@ -11,8 +11,10 @@ interfaces for the Tokyo Tyrant network database interface.  Principe
 provides a thin wrapper for the Tyrant TCP/IP protocol but does not do
 any connection management beyond providing a simple connect function.
 The medici application provides connection management, a non-blocking
-interface for the pool of principe connections, and standard OTP
-restart/fault-tolerance capabilities.
+interface for the pool of principe connections, standard OTP
+restart/fault-tolerance capabilities, and the ability to run the
+Tyrant server as an Erlang port for full control of the server from
+within Erlang.
 
 == Using Principe ==
 
@@ -89,26 +91,51 @@ to the Tyrant server so that you don't need to worry about it.
 
 === Configuration/Connection Options ===
 
-The various options available for setting configuration or connection
-parameters.  In addition to the hostname, port, connect_opts that are
-used by the principe/principe_table modules, the following options are
-used by the 
+The various options are available for setting configuration or connection
+parameters. 
 
-controller: an atom that is used as the registered name for the medici
-service.
+The principe and principe_table connect() function uses the hostname,
+port, connect_opts to tell gen_tcp where the Tyrant server is located.
 
-native: a boolean value (false is assumed if property is not present
-in configuration options) that turns the medici service into an erlang
-term storage server.  Erlang terms will be used as the keys and all
-values returned will be erlang terms.  If the native flag is set in
+The medici application configuration options can be set as OTP
+application env values. The "options" env key has as its value a
+proplist that contains the various configuration options to be used.
+Modify the medici.app file for making persistent changes, tweak the
+values from the command-line for changing the values when the Erlang
+VM starts, or pass in the options proplist as the argument to
+medici:start() to modify the settings at runtime.
+
+The following options are examined and used by medici to modify how it
+operates, each option is a key in the options proplist with a specific
+value (and meaning for that value) as follows:
+
+controller: If present the value should be an atom that is used as the
+registered name for the medici service.  If not present then the
+service is registered using the name 'medici'.
+
+native: This is a boolean value (false is assumed if property is not
+present in configuration options) that turns the medici service into
+an erlang term storage server.  Erlang terms will be used as the keys
+and all values returned will be erlang terms.  If the native flag is set in
 the configuration options the tyrant server cannot be of the table or
 fixed-length types.
 
-num_connections: an integer that tells the connection controler how
-many connection clients to keep active in the pool.  The default of 8
-is also the number of work threads that a tyrant server will start as
+num_connections:This is an integer that tells the connection controler
+how  many connection clients to keep active in the pool.  The default
+of 8 is also the number of work threads that a tyrant server will start as
 its default, so if you change this number you should also start your
 tyrant server with an equivalent number of worker threads for best
 performance.
+
+run_server: This value is used to tell the medici application to run
+the Tyrant server itself using a port server.  The value for this
+property is a proplist that contains up to five additional key/value
+pairs: tyrant_bin, tyrant_opts, data_file, tuning_opts, and
+port_opts.  The value of the port_opts proplist element should be a
+list containing valid options for the erlang:open_port() function, the
+remainder are strings containing the pathname for the ttserver binary
+(tyrant_bin), the command-line options for ttserver (tyrant_opts), the
+pathname of the database file to use (data_file), and any additional
+tuning options to apply to this database (tuning_opts).
 
 @end

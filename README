@@ -10,16 +10,9 @@ to a tyrant server and returns the results.
 Medici is an Erlang app that provides a supervised pool of client
 connections to the tyrant service (via principe) and a client controller
 that provides an fairly robust api for other processes to use when
-accessing the tyrant service. 
-
----------
-Keys and Values
-
-All keys for database operations should be iolists.  Values can be
-iolists, integers, or floats.  For the table interface the columns
-are accessed via {column_name, column_value} proplists, where the
-column name is an iolist and the column value is an iolist, integer,
-or float.
+accessing the tyrant service.  The medici app can also run a tyrant
+server as a port, controlling the server from Erlang and eliminating
+the necessity to start/stop this server outside of the Erlang application.
 
 
 ---------
