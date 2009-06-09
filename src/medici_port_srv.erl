@@ -1,9 +1,21 @@
-%%%-------------------------------------------------------------------
-%%% File    : medici_port_srv.erl
-%%% Author  : Jim McCoy <>
-%%% Description : 
+%%%% The contents of this file are subject to the Erlang Public License,
+%%% Version 1.1, (the "License"); you may not use this file except in
+%%% compliance with the License. You should have received a copy of the
+%%% Erlang Public License along with this software. If not, it can be
+%%% retrieved via the world wide web at http://www.erlang.org/.
 %%%
-%%% Created : 30 May 2009 by Jim McCoy <>
+%%% Software distributed under the License is distributed on an "AS IS"
+%%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
+%%% the License for the specific language governing rights and limitations
+%%% under the License.
+%%%-------------------------------------------------------------------
+%%% File:      medici_port_srv.erl
+%%% @author    Jim McCoy <mccoy@mad-scientist.com>
+%%% @copyright Copyright (c) 2009, Jim McCoy.  All Rights Reserved.
+%%%
+%%% @private
+%%% An Erlang port server that manages a Tyrant server.
+%%% @end
 %%%-------------------------------------------------------------------
 -module(medici_port_srv).
 
@@ -16,15 +28,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
-%% The options part of the state record is a collection of proplists
-%% for the various tokyo tyrant options. There are five key/string proplists
-%% in the tyrant_command list:
-%%   server_bin - single element, the path to the tyrant binary
-%%   data_file - single element, the path to the database file
-%%   tyrant_opts - proplist, key/value list of command-line tyrant flags
-%%   tuning_opts - proplist, key/value list of tyrant tuning options (appended
-%%                 to data_file name when invoking tyrant command)
-%%   port_opts - list of options to be used by open_port
 -record(state, {port=nil, 
 		options=[],
 		pid=0,
@@ -42,10 +45,9 @@
 %%====================================================================
 %% API
 %%====================================================================
-%%--------------------------------------------------------------------
-%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Starts the server
-%%--------------------------------------------------------------------
+%% @spec start_link() -> {ok, Pid} | {error, term()}
+%%
+%% @private Start the Tyrant port server
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
@@ -53,14 +55,7 @@ start_link() ->
 %% gen_server callbacks
 %%====================================================================
 
-%%--------------------------------------------------------------------
-%% Function: init(Args) -> {ok, State} |
-%%                         {ok, State, Timeout} |
-%%                         ignore               |
-%%                         {stop, Reason}
-%% Description: Initiates the server
-%%--------------------------------------------------------------------
-init([]) ->
+init(_Args) ->
     {ok, LogMatch} = re:compile(?LOG_REGEXP),
     {ok, PidMatch} = re:compile(?PID_REGEXP),
     case application:get_env(options) of
@@ -71,18 +66,9 @@ init([]) ->
     end,
     process_flag(trap_exit, true),
     start_server(ServerOpts, #state{log_match=LogMatch,
-				    pid_match=PidMatch})
-    end.
+				    pid_match=PidMatch}).
 
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
+
 handle_call({get_info}, _From, State) ->
     {reply, {State#state.options, State#state.pid}, State};
 handle_call({restart, ServerOpts}, _From, State) ->
@@ -102,45 +88,24 @@ handle_call({restart}, _From, State) ->
 handle_call({stop}, _From, State) ->
     {stop, asked_to_stop, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
 handle_info({'EXIT', Port, Reason}, #state{port=Port} = State) ->
-    {stop, {port_terminated, Reason}, State};
+    {stop, {port_terminated, Reason},State#state{port=nil, pid=0}};
+handle_info({Port, closed}, #state{port=Port} = State) ->
+    {stop, {port_terminated, returned_close_msg},State#state{port=nil, pid=0}};
 handle_info({Port, {data, {eol, StdOutMsg}}}, #state{port=Port} = State) ->
     parse_log_message(binary_to_list(StdOutMsg), State);
 handle_info(Info, State) ->
     io:format("unrecognized info message: ~p~n", [Info]),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
 terminate({port_terminated, _Reason}, _State) ->
     ok;
 terminate(_Reason, State) ->
     kill_server(State).
 
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

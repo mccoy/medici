@@ -78,7 +78,8 @@ init(StartArgs) ->
 				    [medici_port_sup]},
 	    {ok,{{one_for_all,1,10}, [MediciController, 
 				      MediciConnSupervisor, 
-				      MediciPortSupervisor]}}.
+				      MediciPortSupervisor]}}
+    end.
 
 %%====================================================================
 %% Internal functions
