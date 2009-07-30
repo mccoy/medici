@@ -57,14 +57,15 @@
 	 adddouble/3, 
 	 adddouble/4,
 	 adddouble/5,
-	 sync/1, 
+	 sync/1,
+	 optimize/2,
 	 vanish/1, 
 	 rnum/1, 
 	 size/1, 
 	 stat/1,
 	 copy/2, 
 	 restore/3, 
-	 setmst/3, 
+	 setmst/3,
 	 misc/3,
 	 misc/4,
 	 misc_no_update/3,
@@ -94,14 +95,16 @@
 -define(ADDDOUBLE, 16#C861).
 -define(EXT, 16#C868).
 -define(SYNC, 16#C870).
--define(VANISH, 16#C871).
--define(COPY, 16#C872).
--define(RESTORE, 16#C873).
+-define(OPTIMIZE, 16#C871).
+-define(VANISH, 16#C872).
+-define(COPY, 16#C873).
+-define(RESTORE, 16#C874).
 -define(SETMST, 16#C878).
 -define(RNUM, 16#C880).
 -define(SIZE, 16#C881).
 -define(STAT, 16#C888).
 -define(MISC, 16#C890).
+-define(REPL, 16#C8A0).
 
 -define(MONOULOG, 1 bsl 0).
 -define(XOLCKREC, 1 bsl 0).
@@ -487,6 +490,16 @@ vanish(Socket) ->
     ?T0(?VANISH),
     ?R_SUCCESS.
 
+%% @spec optimize(Socket::port(),
+%%                iolist()) -> ok | error()
+%%
+%% @doc Change the remote database tuning parameters.  The second parameter
+%%      should be a list of the database tuning parameters that will be applied
+%%      at the remote end (e.g. "#bnum=1000000#opts=ld").
+optimize(Socket, Key) ->
+    ?T1(?OPTIMIZE), % Using 'Key' so that the macro binds properly...
+    ?R_SUCCESS.
+
 %% @spec rnum(Socket::port()) -> integer() | error()
 %%
 %% @doc Get the number of records in the remote database.
@@ -552,6 +565,18 @@ setmst(Socket, HostName, Port) when is_integer(Port) ->
 			  <<(iolist_size(HostName)):32>>, 
 			  <<Port:32>>, HostName]),
     ?R_SUCCESS.
+
+%% @spec repl(Socket::port(),
+%%            TimeStamp::integer(),
+%%            Sid::integer())
+%%
+%% @doc Initiate master->slave replication to the server id provided starting at a
+%%      given timestamp.
+%% repl(Socket, TimeStamp, Sid) ->
+%%     gen_tcp:send(Socket, [<<?SETMST:16>>, 
+%% 			  <<TimeStamp:64>>, 
+%% 			  <<Sid:32>>]),
+%%     ?R_SUCCESS.
 
 %% @spec misc(Socket::port(),
 %%            Func::iolist(),
