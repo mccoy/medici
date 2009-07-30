@@ -54,7 +54,6 @@ start_link() ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-
 init(_Args) ->
     {ok, LogMatch} = re:compile(?LOG_REGEXP),
     {ok, PidMatch} = re:compile(?PID_REGEXP),
