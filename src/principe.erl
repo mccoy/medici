@@ -64,7 +64,8 @@
 	 size/1, 
 	 stat/1,
 	 copy/2, 
-	 restore/3, 
+	 restore/3,
+	 restore_with_check/3,
 	 setmst/3,
 	 misc/3,
 	 misc/4,
@@ -545,15 +546,32 @@ copy(Socket, Key) when is_binary(Key) ->
 
 %% @spec restore(Socket::port(), 
 %%               PathName::iolist(), 
-%%               TimeStamp::integer) -> ok | error()
+%%               TimeStamp::integer,
+%%               Options::) -> ok | error()
 %%
 %% @doc Restore the database to a particular point in time from the update log.
 restore(Socket, PathName, TimeStamp) ->
     gen_tcp:send(Socket, [<<?RESTORE:16>>, 
 			  <<(iolist_size(PathName)):32>>,
-			  <<TimeStamp:64>>, 
+			  <<TimeStamp:64>>,
+			  <<0:32>>,
 			  PathName]),
     ?R_SUCCESS.
+
+%% @spec restore_with_check(Socket::port(), 
+%%                          PathName::iolist(), 
+%%                          TimeStamp::integer) -> ok | error()
+%%
+%% @doc Restore the database to a particular point in time from the update log and
+%%      perform a consistency check
+%% @end
+restore_with_check(Socket, PathName, TimeStamp) ->
+    gen_tcp:send(Socket, [<<?RESTORE:16>>, 
+			  <<(iolist_size(PathName)):32>>,
+			  <<TimeStamp:64>>,
+			  <<1:32>>,
+			  PathName]),
+    ?R_SUCCESS.    
 
 %% @spec setmst(Socket::port(), 
 %%              HostName::iolist(), 

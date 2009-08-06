@@ -16,10 +16,10 @@ clean:
 	rm -fv test/*.beam
 
 # Testing with a Tokyo Tyrant server instance
-test: clean ttclean tt_normal testbuild run_basic_test ttstopd tt_table run_table_test ttstopd ttclean
+test: clean ttclean tt_normal testbuild run_basic_test tt_table run_table_test ttstopd #ttclean
 testbuild:
 	erlc -o ebin/ src/*.erl
-	erlc test/*.erl
+	erlc -o test/ test/*.erl
 run_basic_test:
 	erl -pa ebin/ -pa test/ -noshell -s principe_test test -s init stop
 run_table_test:
@@ -27,8 +27,8 @@ run_table_test:
 ttclean:
 	rm -f /tmp/ttserver.pid /tmp/ttserver.*
 tt_normal:
-	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tcb
+	ttserver -dmn -kl -pid /tmp/ttserver.pid /tmp/ttserver.tch
 tt_table:
-	ttserver -dmn -pid /tmp/ttserver.pid /tmp/ttserver.tct
+	ttserver -dmn -kl -pid /tmp/ttserver.pid /tmp/ttserver.tct
 ttstopd:
-	kill -TERM `cat /tmp/ttserver.pid`
+	kill -TERM `head -1 /tmp/ttserver.pid`

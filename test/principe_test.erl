@@ -26,6 +26,7 @@ test(ConnectParams) ->
     ok = rnum_test(ConnectParams),
     ok = size_test(ConnectParams),
     ok = stat_test(ConnectParams),
+    ok = optimize_test(ConnectParams),
     ok = misc_test(ConnectParams),
     ok.
 
@@ -68,6 +69,7 @@ putkeep_test(ConnectParams) ->
     {ok, Socket} = principe:connect(ConnectParams),
     ok = principe:vanish(Socket),
     ok = principe:put(Socket, <<"test">>, <<"foo">>),
+    <<"foo">> = principe:get(Socket, <<"test">>),
     {error, _} = principe:putkeep(Socket, <<"test">>, <<"bar">>),
     <<"foo">> = principe:get(Socket, <<"test">>), % no effect if key already exists before putkeep
     ok = principe:putkeep(Socket, <<"another">>, <<"baz">>),
@@ -206,6 +208,14 @@ size_test(ConnectParams) ->
 stat_test(ConnectParams) ->
     {ok, Socket} = principe:connect(ConnectParams),
     principe:stat(Socket),
+    ok.
+
+optimize_test(ConnectParams) ->
+    {ok, Socket} = principe:connect(ConnectParams),
+    OldSize = list_to_integer(proplists:get_value(size, principe:stat(Socket))),
+    ok = principe:optimize(Socket, "#bnum=1000000#opts=ld"),
+    NewSize = list_to_integer(proplists:get_value(size, principe:stat(Socket))),
+    true = NewSize > OldSize,
     ok.
 
 misc_test(ConnectParams) ->
