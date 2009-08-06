@@ -28,19 +28,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
+-include("medici.hrl").
+
 -record(state, {port=nil, 
 		options=[],
 		pid=0,
 	        log_match,
 	        pid_match}).
-
--define(PORT_OPTS, [binary, use_stdio, stream, {line, 256}, hide]).
--define(TYRANT_BIN, "/opt/local/bin/ttserver").
--define(TYRANT_OPTS, []).
--define(DATA_FILE, "\"*\""). % default to in-memory hash (quote the *...)
--define(TUNING_OPTS, []).
--define(LOG_REGEXP, "\\S+\\t(\\S+)").
--define(PID_REGEXP, "service started: (\\d+)").
 
 %%====================================================================
 %% API
@@ -49,7 +43,18 @@
 %%
 %% @private Start the Tyrant port server
 start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+    case application:get_env(options) of
+	{ok, MediciOpts} ->
+	    ServerOpts = proplists:get_value(run_server, MediciOpts, []);
+	_ ->
+	    ServerOpts = []
+    end,
+    case proplists:get_value(server_name, ServerOpts) of
+	undefined ->
+	    gen_server:start_link({local, ?PORT_SRV_NAME}, ?MODULE, [], []);
+	ServerName ->
+	    gen_server:start_link({local, ServerName}, ?MODULE, [], [])
+    end.
 
 %%====================================================================
 %% gen_server callbacks

@@ -30,12 +30,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--define(DEFAULT_CONTROLLER, medici).
--ifdef(DEBUG).
--define(DEBUG_LOG(Msg, Args), error_logger:error_msg(Msg, Args)).
--else.
--define(DEBUG_LOG(_Msg, _Args), void).
--endif.
+-import("medici.hrl").
 
 -record(state, {socket, mod, endian, controller}).
 
@@ -59,12 +54,12 @@ init(MediciOpts) ->
     {ok, Sock} = principe:connect(MediciOpts),
     case get_db_type(Sock) of
 	{ok, Endian, table} ->
-	    Controller = proplists:get_value(controller, MediciOpts, ?DEFAULT_CONTROLLER),
+	    Controller = proplists:get_value(controller, MediciOpts, ?CONTROLLER_NAME),
 	    Controller ! {client_start, self()},
 	    process_flag(trap_exit, true),
 	    {ok, #state{socket=Sock, mod=principe_table, endian=Endian, controller=Controller}};
 	{ok, Endian, _} ->
-	    Controller = proplists:get_value(controller, MediciOpts, ?DEFAULT_CONTROLLER),
+	    Controller = proplists:get_value(controller, MediciOpts, ?CONTROLLER_NAME),
 	    Controller ! {client_start, self()},
 	    process_flag(trap_exit, true),
 	    {ok, #state{socket=Sock, mod=principe, endian=Endian, controller=Controller}};

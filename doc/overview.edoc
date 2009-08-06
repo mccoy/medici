@@ -109,7 +109,7 @@ The following options are examined and used by medici to modify how it
 operates, each option is a key in the options proplist with a specific
 value (and meaning for that value) as follows:
 
-controller: If present the value should be an atom that is used as the
+controller_name: If present the value should be an atom that is used as the
 registered name for the medici service.  If not present then the
 service is registered using the name 'medici'.
 
@@ -129,13 +129,38 @@ performance.
 
 run_server: This value is used to tell the medici application to run
 the Tyrant server itself using a port server.  The value for this
-property is a proplist that contains up to five additional key/value
-pairs: tyrant_bin, tyrant_opts, data_file, tuning_opts, and
-port_opts.  The value of the port_opts proplist element should be a
-list containing valid options for the erlang:open_port() function, the
+property is a proplist that contains up to six additional key/value
+pairs: server_name, tyrant_bin, tyrant_opts, data_file, tuning_opts, and
+port_opts.  Server_name is the name to register the port server under.
+The value of the port_opts proplist element should be a list
+containing valid options for the erlang:open_port() function. The
 remainder are strings containing the pathname for the ttserver binary
 (tyrant_bin), the command-line options for ttserver (tyrant_opts), the
 pathname of the database file to use (data_file), and any additional
 tuning options to apply to this database (tuning_opts).
 
+auto_sync: This configuration option tells the medici application to
+run a periodic task that will send a sync message to the tyrant server
+on an interval.  The auto_sync option can be a property with a boolean
+value or have an integer value (e.g. {auto_sync, true}, {auto_sync,
+3000} are all examples of valid options.)  If the value of the
+auto_sync option is an integer then the sync task will run every X
+milliseconds, where X is the value provided, if the value evaluates to
+true then the auto_sync task will run with a default frequency.
+
+auto_tune: This option tells the medici task manager to examine the
+database every five seconds and to optimize the database tuning
+parameters if warranted.  The optimizations applied will also update
+the tuning options for the port server if the run_server option is
+enabled (so that tuning changes will survive port restarts.)  NOTE:
+The changes made by auto_tune will not persist through an application
+restart and are only applied to the current instance of the medici
+application.
+
+watch_disk: If medici is running a port server to manage the tyrant
+server (see run_server) then this option tells the task manager to
+check available disk space and shutdown the medici application if it
+appears that the system is in danger of exceeding available disk space
+(which can cause catestrophic failures for the database.) [Currently
+unimplemented]
 @end
