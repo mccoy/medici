@@ -497,6 +497,7 @@ vanish(Socket) ->
 %% @doc Change the remote database tuning parameters.  The second parameter
 %%      should be a list of the database tuning parameters that will be applied
 %%      at the remote end (e.g. "#bnum=1000000#opts=ld").
+%% @end
 optimize(Socket, Key) ->
     ?T1(?OPTIMIZE), % Using 'Key' so that the macro binds properly...
     ?R_SUCCESS.

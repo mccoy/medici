@@ -111,7 +111,10 @@ value (and meaning for that value) as follows:
 
 controller_name: If present the value should be an atom that is used as the
 registered name for the medici service.  If not present then the
-service is registered using the name 'medici'.
+service is registered using the name 'medici'.  If you change the
+controller name then you will no longer be able to use the simple API
+provided by the medici.erl module, see the docs for that module or
+comments within the module itself for more info.
 
 native: This is a boolean value (false is assumed if property is not
 present in configuration options) that turns the medici service into
