@@ -63,7 +63,13 @@ init(_Args) ->
     end,
     Controller = proplists:get_value(controller_name, MediciOpts, ?CONTROLLER_NAME),
     ServerOpts = proplists:get_value(run_server, MediciOpts, []),
-    PortServer = proplists:get_value(server_name, ServerOpts, ?PORT_SRV_NAME),
+    ExpectedPortServer = proplists:get_value(server_name, ServerOpts, ?PORT_SRV_NAME),
+    case whereis(ExpectedPortServer) of
+	undefined ->
+	    PortServer = nil;
+	{ok, _Pid} ->
+	    PortServer = ExpectedPortServer
+    end,
     case proplists:get_value(auto_sync, MediciOpts, ?AUTO_SYNC) of
 	true ->
 	    SyncFreq = ?AUTO_SYNC_PERIOD;
@@ -151,25 +157,34 @@ code_change(_OldVsn, State, _Extra) ->
 add_periodic_task(Name, Period, Module, Function, Args) ->
     #task{}.
 
+auto_sync(State) ->
+    gen_server:call(State#state.controller, {sync}).
+
+auto_tune(State) when State#state.port_server =/= nil ->
+    % we can ask the port_server for current tuning options and
+    % set them through the port server to make them persistent
+    % through server restarts
+    void;
+auto_tune(State) ->
+    void.
 
 %%%%%%%%%
 %  watching disk space
 %
-%  skip os_mon
+%  skip os_mon, go with direct calls to os
 %
 % windows: 
 %% fsutil volume diskfree C:
 
 %% which returns something like:
-
 %% Total # of free bytes : 230645665792
 %% Total # of bytes : 266205130752
 %% Total # of avail free bytes : 230645665792
 
 % unix/osx
 %
-% /bin/df -k watchdir
-%
+%% /bin/df -k watchdir
+%%
 %% Filesystem   1024-blocks      Used Available Capacity  Mounted on
 %% /dev/disk0s2   116884912 111372820   5256092    96%    /
 
