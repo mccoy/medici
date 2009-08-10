@@ -21,7 +21,7 @@
 
 %% Defaults for the task manager
 -define(TASK_MGR_NAME, medici_tasks).
--define(MIN_PERIOD, 100).   % max frequency
+-define(TASK_MIN_PERIOD, 100).   % max frequency
 -define(AUTO_SYNC, true).
 -define(AUTO_SYNC_PERIOD, 5000).
 -define(AUTO_TUNE, false).

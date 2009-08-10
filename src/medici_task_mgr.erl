@@ -55,6 +55,7 @@ start_link() ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 init(_Args) ->
+    timer:start(),
     case application:get_env(options) of
 	{ok, ApplicationOpts} ->
 	    MediciOpts = ApplicationOpts;
@@ -67,38 +68,38 @@ init(_Args) ->
     case whereis(ExpectedPortServer) of
 	undefined ->
 	    PortServer = nil;
-	{ok, _Pid} ->
+	_Pid ->
 	    PortServer = ExpectedPortServer
     end,
     case proplists:get_value(auto_sync, MediciOpts, ?AUTO_SYNC) of
 	true ->
-	    SyncFreq = ?AUTO_SYNC_PERIOD;
+	    SyncTask = add_periodic_task({sync, ?AUTO_SYNC_PERIOD, ?MODULE, do_auto_sync, [Controller]}, []);
 	false ->
-	    SyncFreq = 0;
+	    SyncTask = [];
 	OtherSync when is_integer(OtherSync) ->
-	    SyncFreq = OtherSync
+	    SyncTask = add_periodic_task({sync, OtherSync, ?MODULE, do_auto_sync, [Controller]}, [])
     end,
     case proplists:get_bool(auto_tune, MediciOpts, ?AUTO_TUNE) of
 	true ->
-	    TuneFreq = ?AUTO_TUNE_PERIOD;
+	    TuneTask = add_periodic_task({tune, ?AUTO_TUNE_PERIOD, ?MODULE, do_auto_tune, [Controller, PortServer]}, SyncTask);
 	_ ->
-	    TuneFreq = 0
+	    TuneTask = SyncTask
     end,
-    case SyncFreq > ?MIN_PERIOD of
-	true ->
-	    PostSyncTasks = add_periodic_task(sync, SyncFreq, ?MODULE, auto_sync, []);
-	_ ->
-	    PostSyncTasks = []
-    end,
-    case TuneFreq > ?MIN_PERIOD of
-	true ->
-	    PostTuneTasks = lists:append(PostSyncTasks, add_periodic_task(tune, TuneFreq, ?MODULE, auto_tune, []));
-	_ ->
-	    PostTuneTasks = PostSyncTasks
+    case proplists:get_value(auto_copy, MediciOpts) of
+	undefined ->
+	    CopyTask = TuneTask;
+	{FilePath, Frequency} when is_integer(Frequency) ->
+	    DirName = filename:dirname(FilePath),
+	    case filelib:ensure_dir(DirName) of
+		{error, _Reason} ->
+		    CopyTask = TuneTask;
+		ok ->
+		    CopyTask = add_periodic_task({copy, Frequency * 1000, ?MODULE, do_auto_copy, [Controller, FilePath]}, TuneTask)
+	    end
     end,
     {ok, #state{controller=Controller,
 	        port_server=PortServer,
-	        tasks=PostTuneTasks}}.
+	        tasks=CopyTask}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -110,7 +111,12 @@ init(_Args) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({add_task, Name, Period, M, F, A}, _From, State) ->
-    {reply, ok, State}.
+    {reply, ok, State};
+handle_call({delete_task, Name}, _From, State) ->
+    {reply, ok, State};
+handle_call({list_tasks}, _From, State) ->
+    TaskList = [{Task#task.name, Task#task.period} || Task <- State#state.tasks],
+    {reply, TaskList, State}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -138,10 +144,7 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
-    CancelTask = fun(Task) ->
-			 timer:cancel(Task#task.ref)
-		 end,
-    lists:foreach(CancelTask, State#state.tasks),
+    lists:foreach(fun(Task) -> timer:cancel(Task#task.ref) end, State#state.tasks),
     ok.
 
 %%--------------------------------------------------------------------
@@ -154,18 +157,38 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-add_periodic_task(Name, Period, Module, Function, Args) ->
-    #task{}.
+add_periodic_task({Name, Period, Module, Function, Args}, CurrentTasks) ->
+    DeletedTasklist = delete_periodic_task(Name, CurrentTasks),
+    case Period >= ?TASK_MIN_PERIOD of
+	false ->
+	    DeletedTasklist;
+	true ->
+	    case timer:apply_interval(Period, Module, Function, Args) of
+		{ok, TRef} ->
+		    [#task{ref=TRef, name=Name, period=Period, 
+			   module=Module, func=Function, args=Args} | DeletedTasklist];
+		{error, _Reason} ->
+		    DeletedTasklist
+	    end
+    end.
 
-auto_sync(State) ->
-    gen_server:call(State#state.controller, {sync}).
+delete_periodic_task(TaskName, TaskList) ->
+    % Does task with this name currently exist? If so delete it from tasklist and kill
+    % any outstanding timers for the task.
+    TaskList.
 
-auto_tune(State) when State#state.port_server =/= nil ->
+do_auto_sync(Controller) ->
+    gen_server:call(Controller, {sync}).
+
+do_auto_tune(Controller, PortServer) when PortServer =/= nil ->
     % we can ask the port_server for current tuning options and
     % set them through the port server to make them persistent
     % through server restarts
     void;
-auto_tune(State) ->
+do_auto_tune(Controller, _PortServer) ->
+    void.
+
+do_auto_copy(Controller, FilePath) ->
     void.
 
 %%%%%%%%%

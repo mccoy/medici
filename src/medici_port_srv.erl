@@ -75,6 +75,21 @@ init(_Args) ->
 
 handle_call({get_info}, _From, State) ->
     {reply, {State#state.options, State#state.pid}, State};
+handle_call({optimize, TuningOpts}, _From, State) ->
+    % make optimize call
+    % update tuning options in application environment
+
+    % update tuning options in State
+    case keyfind(tuning_opts, 1, State#state.options) of
+	false ->
+	    NewState = State#state{options=State#state.options ++ {tuning_opts, TuningOpts}};
+	_ ->
+	    NewState = State#state{options=lists:keyreplace(tuning_opts, 1, 
+							    State#state.options, 
+							    {tuning_opts, TuningOpts})
+				  }
+    end,
+    {reply, ok, NewState};
 handle_call({restart, ServerOpts}, _From, State) ->
     case restart_server(ServerOpts, State) of
 	{ok, NewState} ->

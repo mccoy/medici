@@ -160,6 +160,14 @@ The changes made by auto_tune will not persist through an application
 restart and are only applied to the current instance of the medici
 application.
 
+auto_copy: The auto_copy option takes a tuple as its parameter, with
+the first element being a string that specifies the filepath to which
+the database copy should be stored and the second element being the
+frequency (in seconds) at which this copy operation should run.  The
+filepath should specific the full pathname and filename for the copy
+and when the copy runs it will overwrite any existing file copy.  This
+is basically a way to get an automatic backup copy of the database.
+
 watch_disk: If medici is running a port server to manage the tyrant
 server (see run_server) then this option tells the task manager to
 check available disk space and shutdown the medici application if it
