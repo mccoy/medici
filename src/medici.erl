@@ -40,12 +40,7 @@
 	 query_add_condition/4, query_order/3, search/1, searchcount/1,
 	 searchout/1]).
 
-<<<<<<< HEAD
 -include("medici.hrl").
-=======
-% for all calls
--define(TIMEOUT,5000).
->>>>>>> 0f4a0e02175a83c6d9d80281d9278476a46c56b0
 
 %% @spec start() -> {ok, Pid} | Error:term()
 %%
@@ -100,11 +95,7 @@ out(Key) ->
     gen_server:call(?CONTROLLER_NAME, {out, Key}).
 
 get(Key) ->
-<<<<<<< HEAD
     gen_server:call(?CONTROLLER_NAME, {get, Key}).
-=======
-    gen_server:call(medici, {get, Key},?TIMEOUT).
->>>>>>> 0f4a0e02175a83c6d9d80281d9278476a46c56b0
 
 mget(KeyList) ->
     gen_server:call(?CONTROLLER_NAME, {mget, KeyList}).
@@ -180,11 +171,7 @@ query_order(OldQuery, Column, Type) ->
     gen_server:call(?CONTROLLER_NAME, {query_order, OldQuery, Column, Type}).
 
 search(Query) ->
-<<<<<<< HEAD
     gen_server:call(?CONTROLLER_NAME, {search, Query}).
-=======
-    gen_server:call(medici, {search, Query}, ?TIMEOUT).
->>>>>>> 0f4a0e02175a83c6d9d80281d9278476a46c56b0
 
 searchcount(Query) ->
     gen_server:call(?CONTROLLER_NAME, {searchcount, Query}).

@@ -36,17 +36,6 @@
 	        log_match,
 	        pid_match}).
 
-<<<<<<< HEAD
-=======
--define(PORT_OPTS, [binary, use_stdio, stream, {line, 256}, hide]).
--define(TYRANT_BIN, "/usr/local/bin/ttserver").
--define(TYRANT_OPTS, []).
--define(DATA_FILE, "\"tc.tct\""). % default to in-memory hash (quote the *...)
--define(TUNING_OPTS, []).
--define(LOG_REGEXP, "\\S+\\t(\\S+)").
--define(PID_REGEXP, "service started: (\\d+)").
-
->>>>>>> 0f4a0e02175a83c6d9d80281d9278476a46c56b0
 %%====================================================================
 %% API
 %%====================================================================
