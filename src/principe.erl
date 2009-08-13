@@ -729,7 +729,10 @@ ext(Socket, Func, Opts, Key, Value) ->
     gen_tcp:send(Socket, [<<?EXT:16>>, <<(iolist_size(Func)):32>>, <<Opts:32>>, 
 			  <<(iolist_size(Key)):32>>, <<(iolist_size(Value)):32>>, 
 			  Func, Key, Value]),
-    ?R_SUCCESS.
+    tyrant_response(Socket, 
+		    fun recv_count_data/2 
+		   % fun recv_count_2tuple/2
+		   ).
 
 %%====================================================================
 %% Handle response from the server
@@ -765,7 +768,12 @@ tyrant_response(Socket, ResponseHandler) ->
 
 %% receive 8-bit success flag
 recv_success(_Socket, {tcp, _, <<0:8>>}) -> 
-    ok.
+    ok;
+
+%% TODO: find out why principe_table:search enters this clause
+%% as table becomes large
+recv_success(_Socket, {tcp, _, _})->
+   ok.
  
 %% receive 8-bit success flag + 32-bit int (endianness determined by remote database)
 recv_size(_Socket, {tcp, _, <<0:8, ValSize:32>>}) ->
@@ -811,7 +819,7 @@ recv_count_2tuple(Socket, Data) ->
         {tcp, _, <<0:8, 0:32, _Rest/binary>>} ->
 	    [];
         {tcp, _, <<0:8, Cnt:32, Rest/binary>>} ->
-            {Keys, _} = lists:mapfoldl(
+	    {Keys, _} = lists:mapfoldl(
                             fun(_N, Acc) ->
                                 <<KeySize:32, Bin/binary>> = Acc,
                                 recv_until(Socket, Bin, KeySize)
@@ -820,7 +828,15 @@ recv_count_2tuple(Socket, Data) ->
                         ),
             Keys
     end.
- 
+
+%% receive 8-bit success flag + count + data 
+recv_count_data(Sock,Reply) ->
+    case Reply of 
+	{tcp, _ ,<<0:8, Cnt:32, Rest/binary>>}->
+	    {Acc,_Rest} = recv_until(Sock,Rest,Cnt),
+	    Acc
+    end.
+
 %% receive length-delimited data that may require multiple pulls from the socket
 recv_until(Socket, Bin, ReqLength) when byte_size(Bin) < ReqLength ->
     receive

@@ -41,6 +41,8 @@
 	 query_add_condition/4, query_order/3, search/1, searchcount/1,
 	 searchout/1]).
 
+% for all calls
+-define(TIMEOUT,5000).
 
 %% @spec start() -> {ok, Pid} | Error:term()
 %%
@@ -86,7 +88,7 @@ out(Key) ->
     gen_server:call(medici, {out, Key}).
 
 get(Key) ->
-    gen_server:call(medici, {get, Key}).
+    gen_server:call(medici, {get, Key},?TIMEOUT).
 
 mget(KeyList) ->
     gen_server:call(medici, {mget, KeyList}).
@@ -159,7 +161,7 @@ query_order(OldQuery, Column, Type) ->
     gen_server:call(medici, {query_order, OldQuery, Column, Type}).
 
 search(Query) ->
-    gen_server:call(medici, {search, Query}).
+    gen_server:call(medici, {search, Query}, ?TIMEOUT).
 
 searchcount(Query) ->
     gen_server:call(medici, {searchcount, Query}).

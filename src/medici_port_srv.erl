@@ -35,9 +35,9 @@
 	        pid_match}).
 
 -define(PORT_OPTS, [binary, use_stdio, stream, {line, 256}, hide]).
--define(TYRANT_BIN, "/opt/local/bin/ttserver").
+-define(TYRANT_BIN, "/usr/local/bin/ttserver").
 -define(TYRANT_OPTS, []).
--define(DATA_FILE, "\"*\""). % default to in-memory hash (quote the *...)
+-define(DATA_FILE, "\"tc.tct\""). % default to in-memory hash (quote the *...)
 -define(TUNING_OPTS, []).
 -define(LOG_REGEXP, "\\S+\\t(\\S+)").
 -define(PID_REGEXP, "service started: (\\d+)").
@@ -153,8 +153,8 @@ restart_server(StartOpts, State) when State#state.pid > 0, State#state.port =/= 
 kill_server(State) when State#state.pid > 0, State#state.port =/= nil ->
     %%port_command(State#state.port, <<3:8>>),  % send ^C
     port_close(State#state.port),
-    os:cmd("/bin/kill -9 " ++ integer_to_list(State#state.pid)),
-    ok;
+    os:cmd("/bin/kill -9 " ++ integer_to_list(State#state.pid));
+    %ok;
 kill_server(State) when State#state.port =/= nil ->
     port_close(State#state.port);
 kill_server(_State) ->
