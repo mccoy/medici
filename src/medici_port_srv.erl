@@ -80,7 +80,7 @@ handle_call({optimize, TuningOpts}, _From, State) ->
     % update tuning options in application environment
 
     % update tuning options in State
-    case keyfind(tuning_opts, 1, State#state.options) of
+    case lists:keyfind(tuning_opts, 1, State#state.options) of
 	false ->
 	    NewState = State#state{options=State#state.options ++ {tuning_opts, TuningOpts}};
 	_ ->
@@ -117,7 +117,7 @@ handle_info({Port, closed}, #state{port=Port} = State) ->
 handle_info({Port, {data, {eol, StdOutMsg}}}, #state{port=Port} = State) ->
     parse_log_message(binary_to_list(StdOutMsg), State);
 handle_info(Info, State) ->
-    io:format("unrecognized info message: ~p~n", [Info]),
+    ?DEBUG_LOG("Tyrant port server received unrecognized info message: ~p~n", [Info]),
     {noreply, State}.
 
 terminate({port_terminated, _Reason}, _State) ->
@@ -193,7 +193,7 @@ parse_log_message(Message, State) when State#state.pid =:= 0 ->
 			{noreply, State}
 	    end;
 	_ ->
-	    error_logger:error_message("Unexpected Tyrant output: ~p~n", [Message]),
+	    ?DEBUG_LOG("Unexpected Tyrant output: ~p~n", [Message]),
 	    {noreply, State}
     end;
 parse_log_message(Message, State) ->
@@ -203,6 +203,6 @@ parse_log_message(Message, State) ->
 	    error_logger:info_msg("Tyrant: ~p~n", [TyrantMessage]),
 	    {noreply, State};
 	_ ->
-	    error_logger:error_message("Unexpected Tyrant output: ~p~n", [Message]),
+	    ?DEBUG_LOG("Unexpected Tyrant output: ~p~n", [Message]),
 	    {noreply, State}
     end.

@@ -56,8 +56,20 @@ init(_ClientProps) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(_Request, _From, State) when length(State#state.clients) =:= 0 ->
-    error_logger:error_msg("Request received by controller but no clients available~n"),
+    ?DEBUG_LOG("Request received by controller but no clients available~n", []),
     {reply, {error, no_connection_to_server}, State};
+handle_call(start_auto_sync, _From, State) ->
+    {reply, ok, start_auto_sync(State, ?DEFAULT_TASK_PERIOD)};
+handle_call({start_auto_sync, Period}, _From, State) when is_integer(Period), Period > 0 ->
+    {reply, ok, start_auto_sync(State, Period * 1000)};
+handle_call(stop_auto_sync, _From, State) ->
+    {reply, ok, stop_auto_sync(State)};
+handle_call(start_auto_tune, _From, State) ->
+    {reply, ok, start_auto_tune(State, ?DEFAULT_TASK_PERIOD)};
+handle_call({start_auto_tune, Period}, _From, State) when is_integer(Period), Period > 0 ->
+    {reply, ok, start_auto_tune(State, Period * 1000)};
+handle_call(stop_auto_tune, _From, State) ->
+    {reply, ok, stop_auto_tune(State)};
 handle_call({get, TermKey}, From, State) ->
     dispatch_request({From, get, term_to_binary(TermKey)}, State);
 handle_call({out, TermKey}, From, State) ->
@@ -93,7 +105,7 @@ handle_call({restore, PathName, TimeStamp}, From, State) ->
 handle_call({setmst, HostName, Port}, From, State) ->
     dispatch_request({From, setmst, HostName, Port}, State);
 handle_call(Request, _From, State) ->
-    error_logger:error_msg("Unknown request received by controller:~n~p~n", [Request]),
+    ?DEBUG_LOG("Unknown request received by controller:~n~p~n", [Request]),
     {reply, {error, invalid_request}, State}.
 
 %%--------------------------------------------------------------------
@@ -152,4 +164,45 @@ dispatch_request(Request, State) ->
     [TgtClient | OtherClients] = State#state.clients,
     gen_server:cast(TgtClient, Request),
     {noreply, State#state{clients=OtherClients++[TgtClient]}}.
-    
+
+start_auto_sync(State, Period) when State#state.auto_sync =:= nil ->
+    TRef = timer:send_interval(Period, sync),
+    State#state{auto_sync={TRef, Period}};
+start_auto_sync(State, Period) ->
+    {OldTRef, OldPeriod} = State#state.auto_sync,
+    case OldPeriod =/= Period of
+	true ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(Period, sync);
+	_ ->
+	    TRef = OldTRef
+    end,
+    State#state{auto_sync={TRef, Period}).
+
+stop_auto_sync(State) when State#state.auto_sync =:= nil ->
+    State;
+stop_auto_sync(State) ->
+    {OldTRef, _} = State#state.auto_sync,
+    {ok, cancel} = timer:cancel(TRef),
+    State#state{auto_sync=nil}.
+
+start_auto_tune(State, Period) when State#state.auto_tune =:= nil ->
+    TRef = timer:send_interval(Period, sync),
+    State#state{auto_tune={TRef, Period}};
+start_auto_tune(State, Period) ->
+    {OldTRef, OldPeriod} = State#state.auto_tune,
+    case OldPeriod =/= Period of
+	true ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(Period, tune);
+	_ ->
+	    TRef = OldTRef
+    end,
+    State#state{auto_tune={TRef, Period}).
+
+stop_auto_tune(State) when State#state.auto_tune =:= nil ->
+    State;
+stop_auto_tune(State) ->
+    {OldTRef, _} = State#state.auto_tune,
+    {ok, cancel} = timer:cancel(TRef),
+    State#state{auto_tune=nil}.

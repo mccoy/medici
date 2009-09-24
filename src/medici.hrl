@@ -19,11 +19,6 @@
 -define(LOG_REGEXP, "\\S+\\t(\\S+)").
 -define(PID_REGEXP, "service started: (\\d+)").
 
-%% Defaults for the task manager
--define(TASK_MGR_NAME, medici_tasks).
--define(TASK_MIN_PERIOD, 100).   % max frequency
 -define(AUTO_SYNC, true).
--define(AUTO_SYNC_PERIOD, 5000).
 -define(AUTO_TUNE, false).
--define(AUTO_TUNE_PERIOD, 5000).
-
+-define(DEFAULT_TASK_PERIOD, 5000).

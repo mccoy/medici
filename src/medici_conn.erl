@@ -30,7 +30,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--import("medici.hrl").
+-include("medici.hrl").
 
 -record(state, {socket, mod, endian, controller}).
 
@@ -80,6 +80,13 @@ handle_call(Request, _From, State) ->
 %% @private Handle cast messages to forward to the remote database
 handle_cast(stop, State) ->
     {stop, asked_to_stop, State};
+handle_cast({From, tune}, State) ->
+    %% DB tuning request will come in via this channel, but is not just passed
+    %% through to principe/tyrant.  Handle it here.
+    NewState = tune_db(State),
+    Result = ok,
+    gen_server:reply(From, Result),
+    {noreply, NewState};
 handle_cast({From, CallFunc}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
     Result = Module:CallFunc(State#state.socket),
@@ -220,3 +227,6 @@ get_db_type(Socket) when is_port(Socket) ->
 		    {ok, Endian, Type}
 	    end	    
     end.
+
+tune_db(State) ->
+    State.
