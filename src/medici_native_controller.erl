@@ -125,16 +125,16 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({client_start, Pid}, State) ->
     {noreply, State#state{clients=[Pid | State#state.clients]}};
-
 handle_info({client_end, Pid}, State) ->
     {noreply, State#state{clients=lists:delete(Pid, State#state.clients)}};
-
 handle_info({retry, Pid, _OldReply, OldRequest}, State) when length(State#state.clients) > 1 ->
     dispatch_request(OldRequest, State#state{clients=lists:delete(Pid, State#state.clients)});
-
 handle_info({retry, Pid, OldReply, OldRequest}, State) ->
     gen_server:reply(element(1, OldRequest), OldReply),
-    {noreply, State#state{clients=lists:delete(Pid, State#state.clients)}}.
+    {noreply, State#state{clients=lists:delete(Pid, State#state.clients)}};
+handle_info(Msg, State) ->
+    ?DEBUG_LOG("Unknown info message to controller: ~p", [Msg]),
+    {noreply, State}.
 
 
 %%--------------------------------------------------------------------
