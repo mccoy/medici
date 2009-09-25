@@ -157,12 +157,12 @@ start_auto_sync(State, Period) ->
 	_ ->
 	    TRef = OldTRef
     end,
-    State#state{auto_sync={TRef, Period}).
+    State#state{auto_sync={TRef, Period}}.
 
 stop_auto_sync(State) when State#state.auto_sync =:= nil ->
     State;
 stop_auto_sync(State) ->
-    {OldTRef, _} = State#state.auto_sync,
+    {TRef, _} = State#state.auto_sync,
     {ok, cancel} = timer:cancel(TRef),
     State#state{auto_sync=nil}.
 
@@ -178,11 +178,11 @@ start_auto_tune(State, Period) ->
 	_ ->
 	    TRef = OldTRef
     end,
-    State#state{auto_tune={TRef, Period}).
+    State#state{auto_tune={TRef, Period}}.
 
 stop_auto_tune(State) when State#state.auto_tune =:= nil ->
     State;
 stop_auto_tune(State) ->
-    {OldTRef, _} = State#state.auto_tune,
+    {TRef, _} = State#state.auto_tune,
     {ok, cancel} = timer:cancel(TRef),
     State#state{auto_tune=nil}.

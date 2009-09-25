@@ -18,7 +18,7 @@ clean:
 # Testing with a Tokyo Tyrant server instance
 test: clean ttclean tt_normal testbuild run_basic_test tt_table run_table_test ttstopd #ttclean
 testbuild:
-	erlc -o ebin/ src/*.erl
+	erlc -DDEBUG +debug_info -o ebin/ src/*.erl
 	erlc -o test/ test/*.erl
 run_basic_test:
 	erl -pa ebin/ -pa test/ -noshell -s principe_test test -s init stop

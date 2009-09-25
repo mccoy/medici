@@ -16,9 +16,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--define(DEFAULT_NAME, medici).
+-include("medici.hrl").
 
--record(state, {clients=[], term_cache}).
+-record(state, {clients=[], term_cache, auto_sync=nil, auto_tune=nil}).
 
 %%====================================================================
 %% API
@@ -29,7 +29,7 @@
 %%--------------------------------------------------------------------
 start_link() ->
     {ok, MediciOpts} = application:get_env(options),
-    MyName = proplists:get_value(controller, MediciOpts, ?DEFAULT_NAME),
+    MyName = proplists:get_value(controller, MediciOpts, ?CONTROLLER_NAME),
     gen_server:start_link({local, MyName}, ?MODULE, MediciOpts, []).
 
 %%====================================================================
@@ -177,12 +177,12 @@ start_auto_sync(State, Period) ->
 	_ ->
 	    TRef = OldTRef
     end,
-    State#state{auto_sync={TRef, Period}).
+    State#state{auto_sync={TRef, Period}}.
 
 stop_auto_sync(State) when State#state.auto_sync =:= nil ->
     State;
 stop_auto_sync(State) ->
-    {OldTRef, _} = State#state.auto_sync,
+    {TRef, _} = State#state.auto_sync,
     {ok, cancel} = timer:cancel(TRef),
     State#state{auto_sync=nil}.
 
@@ -198,11 +198,11 @@ start_auto_tune(State, Period) ->
 	_ ->
 	    TRef = OldTRef
     end,
-    State#state{auto_tune={TRef, Period}).
+    State#state{auto_tune={TRef, Period}}.
 
 stop_auto_tune(State) when State#state.auto_tune =:= nil ->
     State;
 stop_auto_tune(State) ->
-    {OldTRef, _} = State#state.auto_tune,
+    {TRef, _} = State#state.auto_tune,
     {ok, cancel} = timer:cancel(TRef),
     State#state{auto_tune=nil}.
