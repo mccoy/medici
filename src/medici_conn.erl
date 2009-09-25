@@ -83,10 +83,9 @@ handle_cast(stop, State) ->
 handle_cast({From, tune}, State) ->
     %% DB tuning request will come in via this channel, but is not just passed
     %% through to principe/tyrant.  Handle it here.
-    NewState = tune_db(State),
-    Result = ok,
+    Result = tune_db(State),
     gen_server:reply(From, Result),
-    {noreply, NewState};
+    {noreply, State};
 handle_cast({From, CallFunc}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
     Result = Module:CallFunc(State#state.socket),
@@ -229,4 +228,25 @@ get_db_type(Socket) when is_port(Socket) ->
     end.
 
 tune_db(State) ->
-    State.
+    StatInfo = principe:stat(State#state.socket),
+    case StatInfo of
+	{error, Reason} ->
+	    ?DEBUG_LOG("Error getting db type for tuning: ~p", [Reason]),
+	    {error, Reason};
+	StatList ->
+	    case proplists:get_value(type, StatList) of
+		"on-memory hash" -> 
+		    Records = list_to_integer(proplists:get_value(rnum, StatList)),
+		    BnumInt = Records * 4,
+		    TuningParam = "bnum=" ++ integer_to_list(BnumInt),
+		    principe:optimize(State#state.socket, TuningParam);
+		"hash" ->
+		    Records = list_to_integer(proplists:get_value(rnum, StatList)),
+		    BnumInt = Records * 4,
+		    TuningParam = "bnum=" ++ integer_to_list(BnumInt),
+		    principe:optimize(State#state.socket, TuningParam);
+		Other -> 
+		    ?DEBUG_LOG("Can't tune a db of type ~p yet", [Other]),
+		    {error, db_type_unsupported_for_tuning}
+	    end
+    end.
