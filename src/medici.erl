@@ -33,7 +33,7 @@
 -export([put/2, putkeep/2, putcat/2, putshl/3, putnr/2, out/1, get/1, 
 	 mget/1, vsiz/1, iterinit/0, iternext/0, fwmkeys/2, addint/2,
 	 adddouble/2, adddouble/3, sync/0, vanish/0, rnum/0, size/0, 
-	 stat/0, copy/1, restore/2, setmst/2]).
+	 stat/0, copy/1, restore/2, setmst/2, optimize/1]).
 
 %% Table API exports
 -export([update/2, setindex/2, genuid/0, query_limit/2, query_limit/3,

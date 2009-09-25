@@ -123,6 +123,12 @@
 -define(R_2TUPLE, tyrant_response(fun recv_count_2tuple/1)).
 -define(R_4TUPLE, tyrant_response(fun recv_count_4tuple/1)).
 
+%% For testing
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
+
 %%====================================================================
 %% The Tokyo Tyrant access functions
 %%====================================================================

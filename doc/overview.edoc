@@ -31,7 +31,10 @@ names of columns are iolists, but care should be taken to try to avoid
 using column names that contain null characters.  A null byte is used
 by tyrant to separate column names from values and things can get
 confused quite quickly if a column is given a name that contains a
-null.  Just don't do it.
+null.  Just don't do it.  If you want unicode column names you should
+probably encoded the column name in base64 or similar null-safe
+encoding and use the encoded values when interfacing with principe and
+medici.
 
 Returned data is always a binary, list of binaries, or proplist with
 binaries as keys and values.
@@ -158,20 +161,22 @@ a boolean value or have an integer value (e.g. {auto_tune, true},
 {auto_tune, 3} are all examples of valid options.)  If the value of
 the auto_tune option is an integer then the tuning service will run
 every X seconds, where X is the value provided, if the value evaluates
-to true then the auto_tune task will run with a default frequency. The
-optimizations applied will also update the tuning options for the port
-server if the run_server option is enabled (so that tuning changes
-will survive port restarts.)  NOTE: The changes made by auto_tune will
-not persist through an application restart and are only applied to the
-current instance of the medici application.
+to true then the auto_tune task will run with a default frequency of
+every five minutes. The optimizations applied will also update the
+tuning options for the port server if the run_server option is enabled
+(so that tuning changes will survive port restarts.)  NOTE: The
+changes made by auto_tune will not persist through an application
+restart and are only applied to the current instance of the medici
+application.
 
 auto_copy: The auto_copy option takes a tuple as its parameter, with
 the first element being a string that specifies the filepath to which
 the database copy should be stored and the second element being the
-frequency (in seconds) at which this copy operation should run.  The
-filepath should specific the full pathname and filename for the copy
-and when the copy runs it will overwrite any existing file copy.  This
-is basically a way to get an automatic backup copy of the database.
+frequency (in seconds) at which this copy operation should run with a
+minimum value for the frequency being 60 seconds.  The filepath should
+specific the full pathname and filename for the copy and when the copy
+runs it will overwrite any existing file copy.  This is basically a
+way to get an automatic backup copy of the database.
 
 watch_disk: If medici is running a port server to manage the tyrant
 server (see run_server) then this option tells the task manager to

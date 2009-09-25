@@ -64,20 +64,10 @@
 			     end).
 -define(TRaw(Func, Args), principe:misc(Socket, Func, Args)).
 
-%% Some standard types for edoc
-%%
-%% @type endian() = big | little
-%% @type key() = iolist()
-%% @type value() = iolist()
-%% @type value_or_num() = iolist() | integer() | float()
-%% @type keylist() = [key()]
-%% @type coldata() = [{key(), value_or_num()}]
-%% @type error() = {error, term()}
-%% @type index_col() = primary | iolist()
-%% @type index_type() = lexical | decimal | void
-%% @type query_opcode() = atom() | tuple()
-%% @type query_expr() = [binary() | string() | integer()]
-%% @type order_type() = str_ascending | str_descending | num_ascending | num_descending
+%% For testing
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %%====================================================================
 %% The Tokyo Tyrant access functions
@@ -663,3 +653,17 @@ decode_table([], Acc) ->
 decode_table([K, V | Tail], Acc) ->
     decode_table(Tail, [{K, V} | Acc]).
 
+%% Some standard types for edoc
+%%
+%% @type endian() = big | little
+%% @type key() = iolist()
+%% @type value() = iolist()
+%% @type value_or_num() = iolist() | integer() | float()
+%% @type keylist() = [key()]
+%% @type coldata() = [{key(), value_or_num()}]
+%% @type error() = {error, term()}
+%% @type index_col() = primary | iolist()
+%% @type index_type() = lexical | decimal | void
+%% @type query_opcode() = atom() | tuple()
+%% @type query_expr() = [binary() | string() | integer()]
+%% @type order_type() = str_ascending | str_descending | num_ascending | num_descending
