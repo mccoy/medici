@@ -18,7 +18,7 @@
 
 -include("medici.hrl").
 
--record(state, {clients=[], term_cache, auto_sync=nil, auto_tune=nil}).
+-record(state, {clients=[], term_cache, auto_sync=nil, auto_tune=nil, auto_copy=nil}).
 
 %%====================================================================
 %% API
@@ -58,18 +58,9 @@ init(_ClientProps) ->
 handle_call(_Request, _From, State) when length(State#state.clients) =:= 0 ->
     ?DEBUG_LOG("Request received by controller but no clients available~n", []),
     {reply, {error, no_connection_to_server}, State};
-handle_call(start_auto_sync, _From, State) ->
-    {reply, ok, start_auto_sync(State, ?DEFAULT_TASK_PERIOD)};
-handle_call({start_auto_sync, Period}, _From, State) when is_integer(Period), Period > 0 ->
-    {reply, ok, start_auto_sync(State, Period * 1000)};
-handle_call(stop_auto_sync, _From, State) ->
-    {reply, ok, stop_auto_sync(State)};
-handle_call(start_auto_tune, _From, State) ->
-    {reply, ok, start_auto_tune(State, ?DEFAULT_TASK_PERIOD)};
-handle_call({start_auto_tune, Period}, _From, State) when is_integer(Period), Period > 0 ->
-    {reply, ok, start_auto_tune(State, Period * 1000)};
-handle_call(stop_auto_tune, _From, State) ->
-    {reply, ok, stop_auto_tune(State)};
+handle_call({task, TaskType, TaskParams}, _From, State) ->
+    NewState = task(State, TaskType, TaskParams),
+    {reply, ok, NewState};
 handle_call({get, TermKey}, From, State) ->
     dispatch_request({From, get, term_to_binary(TermKey)}, State);
 handle_call({out, TermKey}, From, State) ->
@@ -165,44 +156,85 @@ dispatch_request(Request, State) ->
     gen_server:cast(TgtClient, Request),
     {noreply, State#state{clients=OtherClients++[TgtClient]}}.
 
-start_auto_sync(State, Period) when State#state.auto_sync =:= nil ->
-    TRef = timer:send_interval(Period, sync),
-    State#state{auto_sync={TRef, Period}};
-start_auto_sync(State, Period) ->
-    {OldTRef, OldPeriod} = State#state.auto_sync,
-    case OldPeriod =/= Period of
-	true ->
-	    {ok, cancel} = timer:cancel(OldTRef),
-	    TRef = timer:send_interval(Period, sync);
-	_ ->
-	    TRef = OldTRef
-    end,
-    State#state{auto_sync={TRef, Period}}.
-
-stop_auto_sync(State) when State#state.auto_sync =:= nil ->
+task(State, sync, false) when State#state.auto_sync =:= nil->
     State;
-stop_auto_sync(State) ->
+task(State, sync, false) ->
     {TRef, _} = State#state.auto_sync,
     {ok, cancel} = timer:cancel(TRef),
-    State#state{auto_sync=nil}.
-
-start_auto_tune(State, Period) when State#state.auto_tune =:= nil ->
-    TRef = timer:send_interval(Period, sync),
-    State#state{auto_tune={TRef, Period}};
-start_auto_tune(State, Period) ->
-    {OldTRef, OldPeriod} = State#state.auto_tune,
-    case OldPeriod =/= Period of
+    State#state{auto_sync=nil};
+task(State, sync, true) when State#state.auto_sync =/= nil ->
+    State;
+task(State, sync, true) ->
+    {OldTRef, OldPeriod} = State#state.auto_sync,
+    case OldPeriod =/= ?DEFAULT_SYNC_PERIOD of
 	true ->
 	    {ok, cancel} = timer:cancel(OldTRef),
-	    TRef = timer:send_interval(Period, tune);
+	    TRef = timer:send_interval(?DEFAULT_SYNC_PERIOD, {sync});
 	_ ->
 	    TRef = OldTRef
     end,
-    State#state{auto_tune={TRef, Period}}.
+    State#state{auto_sync={TRef, ?DEFAULT_SYNC_PERIOD}};
+task(State, sync, Period) when is_integer(Period), Period > 0 ->
+    case State#state.auto_sync of
+	nil ->
+	    TRef = timer:send_interval(Period * 1000, {sync}),
+	    State#state{auto_sync={TRef, Period * 1000}};
+	{OldTRef, _} ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(Period * 1000, {sync}),
+	    State#state{auto_sync={TRef, Period * 1000}}
+    end;
+task(State, sync, Period) when is_integer(Period) ->
+    task(State, sync, false);
 
-stop_auto_tune(State) when State#state.auto_tune =:= nil ->
+task(State, tune, false) when State#state.auto_tune =:= nil->
     State;
-stop_auto_tune(State) ->
+task(State, tune, false) ->
     {TRef, _} = State#state.auto_tune,
     {ok, cancel} = timer:cancel(TRef),
-    State#state{auto_tune=nil}.
+    State#state{auto_tune=nil};
+task(State, tune, true) when State#state.auto_tune =/= nil ->
+    State;
+task(State, tune, true) ->
+    {OldTRef, OldPeriod} = State#state.auto_tune,
+    case OldPeriod =/= ?DEFAULT_TUNE_PERIOD of
+	true ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(?DEFAULT_TUNE_PERIOD, {tune});
+	_ ->
+	    TRef = OldTRef
+    end,
+    State#state{auto_tune={TRef, ?DEFAULT_SYNC_PERIOD}};
+task(State, tune, Period) when is_integer(Period), Period > 0 ->
+    case State#state.auto_tune of
+	nil ->
+	    TRef = timer:send_interval(Period * 1000, {tune}),
+	    State#state{auto_tune={TRef, Period * 1000}};
+	{OldTRef, _} ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(Period * 1000, {tune}),
+	    State#state{auto_tune={TRef, Period * 1000}}
+    end;
+task(State, tune, Period) when is_integer(Period) ->
+    task(State, tune, false);
+
+task(State, copy, false) when State#state.auto_copy =:= nil->
+    State;
+task(State, copy, false) ->
+    {TRef, _} = State#state.auto_copy,
+    {ok, cancel} = timer:cancel(TRef),
+    State#state{auto_copy=nil};
+task(State, copy, {Target, Period}) when is_integer(Period), Period > 0 ->
+    case State#state.auto_copy of
+	nil ->
+	    TRef = timer:send_interval(Period * 1000, {copy, Target}),
+	    State#state{auto_tune={TRef, {Target, Period * 1000}}};
+	{OldTRef, _} ->
+	    {ok, cancel} = timer:cancel(OldTRef),
+	    TRef = timer:send_interval(Period * 1000, {copy, Target}),
+	    State#state{auto_tune={TRef, {Target, Period * 1000}}}
+    end;
+task(State, tune, Period) when is_integer(Period) ->
+    task(State, tune, false).
+
+
