@@ -73,61 +73,7 @@
 	 misc_no_update/4,
 	 ext/5]).
 
-%% Standard definitions
--define(TSERVER, "localhost").
--define(TPORT, 1978).
--define(TOPTS, [binary, {packet, 0}, {nodelay, true}, {active, true}, {keepalive, true}]).
--define(TIMEOUT, 5000).
-
-%% Tyrant protocol constants
--define(PUT, 16#C810).
--define(PUTKEEP, 16#C811).
--define(PUTCAT, 16#C812).
--define(PUTSHL, 16#C813).
--define(PUTNR, 16#C818).
--define(OUT, 16#C820).
--define(GET, 16#C830).
--define(MGET, 16#C831).
--define(VSIZ, 16#C838).
--define(ITERINIT, 16#C850).
--define(ITERNEXT, 16#C851).
--define(FWMKEYS, 16#C858).
--define(ADDINT, 16#C860).
--define(ADDDOUBLE, 16#C861).
--define(EXT, 16#C868).
--define(SYNC, 16#C870).
--define(OPTIMIZE, 16#C871).
--define(VANISH, 16#C872).
--define(COPY, 16#C873).
--define(RESTORE, 16#C874).
--define(SETMST, 16#C878).
--define(RNUM, 16#C880).
--define(SIZE, 16#C881).
--define(STAT, 16#C888).
--define(MISC, 16#C890).
--define(REPL, 16#C8A0).
-
--define(MONOULOG, 1 bsl 0).
--define(XOLCKREC, 1 bsl 0).
--define(XOLCKGLB, 1 bsl 1).
-
-%% Macros for function patterns that are used frequently.
--define(T0(Code), gen_tcp:send(Socket, [<<Code:16>>])).
--define(T1(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, Key])).
--define(T2(Code), gen_tcp:send(Socket, [<<Code:16>>, <<(iolist_size(Key)):32>>, <<(iolist_size(Value)):32>>, Key, Value])).
--define(R_SUCCESS, tyrant_response(fun recv_success/1)).
--define(R_INT32, tyrant_response(fun recv_size/1)).
--define(R_INT64, tyrant_response(fun recv_size64/1)).
--define(R_SIZE_DATA, tyrant_response(fun recv_size_data/1)).
--define(R_SIZE64_SIZE64, tyrant_response(fun recv_size64_size64/1)).
--define(R_2TUPLE, tyrant_response(fun recv_count_2tuple/1)).
--define(R_4TUPLE, tyrant_response(fun recv_count_4tuple/1)).
-
-%% For testing
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--endif.
-
+-include("principe.hrl").
 
 %%====================================================================
 %% The Tokyo Tyrant access functions
@@ -745,6 +691,11 @@ ext(Socket, Func, Opts, Key, Value) ->
 %% Handle response from the server
 %%====================================================================
 
+%% @spec (ResponseHandler::function()) -> ok | error() | term()
+%%
+%% @private Get the response from a Tyrant request, parse it, and return the
+%% data or error code.
+%% @end
 tyrant_response(ResponseHandler) ->
     receive
 	{tcp, _, <<1:8, _Rest/binary>>} ->
@@ -778,7 +729,9 @@ recv_success({tcp, _, <<0:8>>}) ->
     ok;
 
 %% TODO: find out why principe_table:search enters this clause
-%% as table becomes large
+%% as table becomes large. {Update from Jim to Jim: this was probably
+%% due to data chunks that was recently fixed due to the bug Bhasker
+%% spotted -- try yanking this and checking again...}
 recv_success({tcp, _, _})->
    ok.
  
@@ -891,3 +844,211 @@ recv_until(Bin, ReqLength) ->
 %% @type keylist() = [key()]
 %% @type error() = {error, term()}
 %% @type endian() = little | big
+
+%% EUnit tests
+%%
+-ifdef(EUNIT).
+test_setup() ->
+    {ok, Socket} = principe:connect(),
+    ok = principe:vanish(Socket),
+    Socket.
+
+get_random_count() ->
+    get_random_count(1000).
+
+get_random_count(Max) ->
+    crypto:start(),
+    {A1,A2,A3} = now(),
+    random:seed(A1, A2, A3),
+    round(Max * random:uniform()).
+
+put_get_test() ->
+    Socket = test_setup(),
+    ?assert(principe:put(Socket, "put_get1", "testval") =:= ok),
+    ?assert(principe:put(Socket, <<"put_get2">>, <<32,145,56,0,14>>) =:= ok),
+    ?assert(principe:get(Socket, <<"put_get1">>) =:= <<"testval">>),
+    ?assert(principe:get(Socket, "put_get2") =:= <<32, 145, 56, 0, 14>>),
+    case proplists:get_value(bigend, principe:stat(Socket)) of
+	"0" ->
+	    ?assert(principe:put(Socket, <<"put_get3">>, 42, little) =:= ok),
+	    ?assert(principe:get(Socket, <<"put_get3">>) =:= <<42:32/little>>);
+	"1" ->
+	    ?assert(principe:put(Socket, <<"put_get3">>, 42, big) =:= ok),
+	    ?assert(principe:get(Socket, <<"put_get3">>) =:= <<42:32>>)
+    end.
+
+put_get_random_test() ->
+    Socket = test_setup(),
+    ElementCount = get_random_count(),
+    PutVals = lists:foldl(fun(_Seq, Acc) ->
+				  KeySize = random:uniform(1024),
+				  Key = crypto:rand_bytes(KeySize),
+				  ValSize = random:uniform(65536),
+				  Val = crypto:rand_bytes(ValSize),
+				  ok = principe:put(Socket, Key, Val),
+				  [{Key, Val} | Acc]
+			  end, [], lists:seq(1, ElementCount)),
+    lists:foreach(fun({K, V}) ->
+			  ?assert(principe:get(Socket, K) =:= V)
+		  end, PutVals),
+    ok.
+
+putkeep_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"test">>, <<"foo">>),
+    ?assert(principe:get(Socket, <<"test">>) =:= <<"foo">>),
+    ?assertMatch({error, _}, principe:putkeep(Socket, <<"test">>, <<"bar">>)),
+    ?assert(principe:get(Socket, <<"test">>) =:= <<"foo">>), % no effect if key already exists before putkeep
+    ok = principe:putkeep(Socket, <<"another">>, <<"baz">>),
+    ?assert(principe:get(Socket, <<"another">>) =:= <<"baz">>), % puts the key if key does not exist already
+    ok.
+
+putcat_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"putcat1">>, <<"foo">>),
+    % append "bar" to the end
+    ok = principe:putcat(Socket, <<"putcat1">>, <<"bar">>),
+    ?assert(principe:get(Socket, <<"putcat1">>) =:= <<"foobar">>),
+    ok.
+
+putshl_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"putshl">>, <<"foo">>),
+    % append "bar" to the end and shift to the left to retain the width of "4"
+    ok = principe:putshl(Socket, <<"putshl">>, <<"bar">>, 4),
+    ?assert(principe:get(Socket, <<"putshl">>) =:= <<"obar">>),
+    ok.
+
+putnr_test() ->
+    Socket = test_setup(),
+    principe:putnr(Socket, <<"putnr1">>, <<"no reply">>),
+    ?assert(principe:get(Socket, <<"putnr1">>) =:= <<"no reply">>),
+    ok.
+
+out_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"out1">>, <<"to remove">>),
+    ?assert(principe:get(Socket, <<"out1">>) =:= <<"to remove">>),
+    ok = principe:out(Socket, <<"out1">>),
+    ?assertMatch({error, _}, principe:get(Socket, <<"out1">>)),
+    ok.
+
+mget_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"mget1">>, <<"alice">>),
+    ok = principe:put(Socket, <<"mget2">>, <<"bob">>),
+    ok = principe:put(Socket, <<"mget3">>, <<"carol">>),
+    ok = principe:put(Socket, <<"mget4">>, <<"trent">>),
+    ?assert(principe:mget(Socket, [<<"mget1">>, <<"mget2">>, 
+				   <<"mget3">>, <<"mget4">>]) =:= 
+	    [{<<"mget1">>, <<"alice">>}, 
+	     {<<"mget2">>, <<"bob">>}, 
+	     {<<"mget3">>, <<"carol">>}, 
+	     {<<"mget4">>, <<"trent">>}]),
+    ok.
+
+vsiz_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"vsiz1">>, <<"vsiz test">>),
+    ?assert(principe:vsiz(Socket, <<"vsiz1">>) =:= 9),
+    ok.
+
+vanish_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"vanish1">>, <<"going away">>),
+    ok = principe:vanish(Socket),
+    ?assertMatch({error, _}, principe:get(Socket, <<"vanish1">>)),
+    ok.
+
+iter_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"a">>, <<"first">>),
+    ok = principe:iterinit(Socket),
+    <<"a">> = principe:iternext(Socket), % "a" should be the first key
+    % Now to test a bit of real iteration
+    ok = principe:put(Socket, <<"b">>, <<"second">>),
+    ok = principe:put(Socket, <<"c">>, <<"third">>),
+    ok = principe:iterinit(Socket),
+    One = principe:iternext(Socket),
+    Two = principe:iternext(Socket),
+    Three = principe:iternext(Socket),
+    {error, _} = principe:iternext(Socket),
+    [<<"a">>, <<"b">>, <<"c">>] = lists:sort([One, Two, Three]),
+    ok.
+
+fwmkeys_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"fwmkeys1">>, <<"1">>),
+    ok = principe:put(Socket, <<"fwmkeys2">>, <<"2">>),
+    ok = principe:put(Socket, <<"fwmkeys3">>, <<"3">>),
+    ok = principe:put(Socket, <<"fwmkeys4">>, <<"4">>),
+    Keys1 = principe:fwmkeys(Socket, <<"fwmkeys">>, 4),
+    ?assert(length(Keys1) =:= 4),
+    ?assert(lists:member(<<"fwmkeys1">>, Keys1)),
+    ?assert(lists:member(<<"fwmkeys2">>, Keys1)),
+    ?assert(lists:member(<<"fwmkeys3">>, Keys1)),
+    ?assert(lists:member(<<"fwmkeys4">>, Keys1)),
+    Keys2 = principe:fwmkeys(Socket, <<"fwmkeys">>, 2),
+    ?assert(length(Keys2) =:= 2),
+    ok.
+
+addint_test() ->
+    Socket = test_setup(),
+    case proplists:get_value(bigend, principe:stat(Socket)) of
+	"0" ->
+	    principe:put(Socket, <<"addint1">>, 100, little);
+	"1" ->
+	    principe:put(Socket, <<"addint1">>, 100)
+    end,
+    ?assert(principe:addint(Socket, <<"addint1">>, 20) =:= 120),
+    ok.
+
+sync_test() ->
+    Socket = test_setup(),
+    ok = principe:sync(Socket),
+    ok.
+
+rnum_test() ->
+    Socket = test_setup(),
+    ok = principe:put(Socket, <<"rnum1">>, <<"foo">>),
+    ok = principe:put(Socket, <<"rnum2">>, <<"foo">>),
+    ?assert(principe:rnum(Socket) =:= 2),
+    ok = principe:vanish(Socket),
+    ?assert(principe:rnum(Socket) =:= 0),
+    ok.
+
+size_test() ->
+    Socket = test_setup(),
+    OldSize = principe:size(Socket),
+    ok = principe:put(Socket, <<"size">>, <<"foo">>),
+    NewSize = principe:size(Socket),
+    ?assert(NewSize > OldSize),
+    ok.
+
+stat_test() ->
+    Socket = test_setup(),
+    principe:stat(Socket).
+
+optimize_test() ->
+    Socket = test_setup(),
+    ok = principe:optimize(Socket, "#bnum=1000000#opts=ld").
+
+misc_test() ->
+    Socket = test_setup(),
+    [] = principe:misc(Socket, "putlist",
+		       ["key1", "value1",
+			"key2", "value2",
+			"key3", "value3",
+			"key4", "value4"]),
+    ?assert(principe:rnum(Socket) =:= 4),
+    ?assert(principe:get(Socket, "key1") =:= <<"value1">>),
+    [] = principe:misc(Socket, "outlist",
+		       ["key1", "key2", "key3"]),
+    ?assert(principe:rnum(Socket) =:= 1),
+    principe:put(Socket, "key5", "value5"),
+    GetlistOut = principe:misc(Socket, "getlist", ["key4", "key5"]),
+    ?assert(lists:all(fun (K) -> lists:member(K, GetlistOut) end, 
+		      [<<"key4">>, <<"value4">>, 
+		       <<"key5">>, <<"value5">>])),
+    ok.
+-endif.

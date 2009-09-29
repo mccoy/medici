@@ -13,17 +13,16 @@ compile: clean
 clean:
 	rm -rfv ebin/
 	mkdir ebin
-	rm -fv test/*.beam
 
 # Testing with a Tokyo Tyrant server instance
-test: clean ttclean tt_normal testbuild run_basic_test tt_table run_table_test ttstopd #ttclean
+test:	clean ttclean tt_normal testbuild run_basic_test tt_table run_table_test ttstopd ttclean
+
 testbuild:
 	erlc -DTEST -DDEBUG +debug_info -o ebin/ src/*.erl
-	erlc -o test/ test/*.erl
 run_basic_test:
-	erl -pa ebin/ -pa test/ -noshell -s principe_test test -s init stop
+	erl -pa ebin/ -noshell -s principe test -s init stop
 run_table_test:
-	erl -pa ebin/ -pa test/ -noshell -s principe_table_test test -s init stop
+	erl -pa ebin/ -noshell -s principe_table test -s init stop
 ttclean:
 	rm -f /tmp/ttserver.pid /tmp/ttserver.*
 tt_normal:
