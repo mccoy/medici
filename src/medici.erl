@@ -178,3 +178,12 @@ searchcount(Query) ->
 
 searchout(Query) ->
     gen_server:call(?CONTROLLER_NAME, {searchout, Query}).
+
+%% EUnit tests
+%%
+-ifdef(EUNIT).
+init_test() ->
+    ?MODULE:start(),
+    ?MODULE:stop(),
+    ok.
+-endif.
