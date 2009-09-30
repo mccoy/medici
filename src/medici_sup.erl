@@ -65,17 +65,10 @@ init(StartArgs) ->
 			    infinity, 
 			    supervisor, 
 			    [medici_conn_sup]},
-    MediciTasks = {task_manager,
-		   {medici_task_mgr, start_link, StartArgs},
-		   permanent,
-		   2000,
-		   worker,
-		   [medici_task_mgr]},
     case proplists:get_value(run_server, MediciOpts) of
 	undefined ->
 	    {ok,{{one_for_all,1,10}, [MediciController, 
-				      MediciConnSupervisor,
-				      MediciTasks]}};
+				      MediciConnSupervisor]}};
 	_ ->
 	    MediciPortSupervisor = {port_supervisor,
 				    {medici_port_sup, start_link, StartArgs},
@@ -85,7 +78,6 @@ init(StartArgs) ->
 				    [medici_port_sup]},
 	    {ok,{{one_for_all,1,10}, [MediciController, 
 				      MediciConnSupervisor,
-				      MediciTasks,
 				      MediciPortSupervisor]}}
     end.
 
