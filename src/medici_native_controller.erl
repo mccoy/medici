@@ -105,6 +105,9 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({putnr, Key, Value}, State) ->
+    dispatch_request({putnr, Key, Value}, State),
+    {noreply, State};
 handle_cast(_Msg, State) ->
     ?DEBUG_LOG("Unknown cast received by medici controller: ~p", [_Msg]),
     {noreply, State}.

@@ -114,6 +114,10 @@ handle_cast({From, CallFunc, Arg1}=Request, State) when is_atom(CallFunc) ->
 	    gen_server:reply(From, Result),
 	    {noreply, State}
     end;
+handle_cast({_From, putnr, Key, Value}, State) ->
+    Module = State#state.mod,
+    Module:putnr(State#state.socket, Key, Value),
+    {noreply, State};
 handle_cast({From, CallFunc, Arg1, Arg2}=Request, State) when is_atom(CallFunc) ->
     Module = State#state.mod,
     Result = Module:CallFunc(State#state.socket, Arg1, Arg2),
