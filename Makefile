@@ -21,6 +21,7 @@ test:	clean ttclean testbuild run_basic_test run_table_test run_medici_test ttst
 
 testbuild:
 	erlc -DTEST -DDEBUG +debug_info -o ebin/ src/*.erl
+	cp src/*.app ebin/
 run_basic_test:
 	ttserver -dmn -kl -pid /tmp/medici_server.pid /tmp/medici_server.tch
 	erl -pa ebin/ -noshell -s principe test -s init stop
