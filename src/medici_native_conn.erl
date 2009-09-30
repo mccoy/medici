@@ -269,8 +269,8 @@ tune_db(State) ->
 		    BnumInt = Records * 4,
 		    TuningParam = "bnum=" ++ integer_to_list(BnumInt),
 		    principe:optimize(State#state.socket, TuningParam);
-		Other -> 
-		    ?DEBUG_LOG("Can't tune a db of type ~p yet", [Other]),
+		_Other -> 
+		    ?DEBUG_LOG("Can't tune a db of type ~p yet", [_Other]),
 		    {error, db_type_unsupported_for_tuning}
 	    end
     end.
