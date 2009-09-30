@@ -223,8 +223,6 @@ init_test() ->
 %%     ?assert(lists:member({foobar, 32}, Options)),
 %%     ?MODULE:stop().
 
-%% XXX JM: create a fixture for the remaining tests and app:start() for it.
-
 medici_api_test_() ->
     {setup, 
      fun() -> ?MODULE:start() end,
