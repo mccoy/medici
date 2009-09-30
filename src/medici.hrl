@@ -12,7 +12,7 @@
 %% If you change NUM_CLIENTS you should probably also change the 
 %% thnum parameter when starting the tyrant server.
 -define(NUM_CLIENTS, 8). 
--define(AUTO_SYNC, true).
+-define(AUTO_SYNC, false).
 -define(AUTO_TUNE, false).
 -define(DEFAULT_SYNC_PERIOD, 5000).
 -define(DEFAULT_TUNE_PERIOD, 300000).
@@ -23,7 +23,7 @@
 
 -define(PORT_SRV_NAME, medici_srv).
 %% XXX Jim: Either the in or out option should be added here as well (nothing is being
-%%     send to the port, we are just reading its output) depending on 
+%%     send to the port, we are just reading its output) depending on how  
 -define(PORT_OPTS, [binary, 
 		    use_stdio, 
 		    stderr_to_stdout,
