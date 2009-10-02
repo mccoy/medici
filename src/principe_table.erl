@@ -403,10 +403,10 @@ query_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), S
 		integer_to_list(Max), 
 		?NULL, 
 		integer_to_list(Skip)],
-    case lists:keyfind(set_limit, 1, proplists:get_keys(Query)) of
+    case lists:keysearch(set_limit, 1, proplists:get_keys(Query)) of
 	false ->
 	    [{LimitKey, LimitValue} | Query];
-	ExistingKey ->
+	{value, ExistingKey} ->
 	    [{LimitKey, LimitValue} | proplists:delete(ExistingKey, Query)]
     end.
 
@@ -431,10 +431,10 @@ query_order(Query, primary, Type) when is_atom(Type) ->
 		  ?NULL, 
 		  ?NULL, 
 		  integer_to_list(order_request_val(Type))],
-    case lists:keyfind(set_order, 1, proplists:get_keys(Query)) of
+    case lists:keysearch(set_order, 1, proplists:get_keys(Query)) of
 	false ->
 	    [{OrderKey, OrderValue} | Query];
-	ExistingKey ->
+	{value, ExistingKey} ->
 	    [{OrderKey, OrderValue} | proplists:delete(ExistingKey, Query)]
     end;
 query_order(Query, ColName, Type) when is_atom(Type) ->
@@ -444,10 +444,10 @@ query_order(Query, ColName, Type) when is_atom(Type) ->
 		  ColName, 
 		  ?NULL, 
 		  integer_to_list(order_request_val(Type))],
-    case lists:keyfind(set_order, 1, proplists:get_keys(Query)) of
+    case lists:keysearch(set_order, 1, proplists:get_keys(Query)) of
 	false ->
 	    [{OrderKey, OrderValue} | Query];
-	ExistingKey ->
+	{value, ExistingKey} ->
 	    [{OrderKey, OrderValue} | proplists:delete(ExistingKey, Query)]
     end.
 

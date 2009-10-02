@@ -80,7 +80,7 @@ handle_call({optimize, TuningOpts}, _From, State) ->
     % update tuning options in application environment
 
     % update tuning options in State
-    case lists:keyfind(tuning_opts, 1, State#state.options) of
+    case lists:keysearch(tuning_opts, 1, State#state.options) of
 	false ->
 	    NewState = State#state{options=State#state.options ++ {tuning_opts, TuningOpts}};
 	_ ->
