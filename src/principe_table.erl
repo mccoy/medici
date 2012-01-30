@@ -23,8 +23,8 @@
 -export([connect/0, connect/1, put/3, putkeep/3, putcat/3, update/3, out/2,
 	 get/2, mget/2, vsiz/2, iterinit/1, iternext/1, fwmkeys/3, sync/1, optimize/2,
 	 vanish/1, rnum/1, size/1, stat/1, copy/2, restore/3, addint/3, adddouble/3, 
-	 adddouble/4, setmst/3, setindex/3, query_limit/3, query_limit/2, query_condition/4,
-	 query_order/3, search/2, genuid/1, searchcount/2, searchout/2]).
+	 adddouble/4, setmst/3, setindex/3, query_limit/3, query_limit/4, query_add_condition/5,
+	 query_order/4, search/2, genuid/1, searchcount/2, searchout/2]).
 
 -include("principe.hrl").
 
@@ -94,7 +94,7 @@ columnize_values([], Current, Stack) ->
     FinalStack = lists:reverse([list_to_binary(lists:reverse(Current)) | Stack]),
     return_column_vals(FinalStack, []);
 columnize_values([0 | T], [], Stack) ->
-    columnize_values(T, [], Stack);
+    columnize_values(T, [], [<<"">>|Stack]);
 columnize_values([0 | T], Current, Stack) ->
     columnize_values(T, [], [list_to_binary(lists:reverse(Current)) | Stack]);
 columnize_values([H | T], Current, Stack) ->
@@ -367,10 +367,11 @@ genuid(Socket) ->
 	    Error
     end.
 
-%% @spec query_condition(Query::proplist(),
-%%                       ColName::iolist(),
-%%                       Op::query_opcode(),
-%%                       ExprList::query_expr()) -> proplist()
+%% @spec query_add_condition(Socket::port(),
+%%                           Query::proplist(),
+%%                           ColName::iolist(),
+%%                           Op::query_opcode(),
+%%                           ExprList::query_expr()) -> proplist()
 %%
 %% @doc
 %% Add a condition for a query.  ExprList should be a list of one or more
@@ -380,7 +381,7 @@ genuid(Socket) ->
 %% the last atom is no_index an existing index on the remote database server will
 %% be bypassed.
 %% @end
-query_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
+query_add_condition(_Sock, Query, ColName, Op, ExprList) when is_list(ExprList) ->
     [{{add_cond, ColName, Op, ExprList}, 
       ["addcond", 
        ?NULL, 
@@ -391,12 +392,13 @@ query_condition(Query, ColName, Op, ExprList) when is_list(ExprList) ->
        convert_query_exprlist(ExprList)]
      } | Query].
 
-%% @spec query_limit(Query::proplist(),
+%% @spec query_limit(Socket::port(),
+%%                   Query::proplist(),
 %%                   Max::integer(),
 %%                   Skip::integer()) -> proplist()
 %%
 %% @doc Set a limit on the number of returned values for Query, skip the first Skip records.
-query_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), Skip >= 0 ->
+query_limit(_Sock, Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), Skip >= 0 ->
     LimitKey = {set_limit, Max, Skip},
     LimitValue = ["setlimit", 
 		?NULL, 
@@ -410,21 +412,23 @@ query_limit(Query, Max, Skip) when is_integer(Max), Max > 0, is_integer(Skip), S
 	    [{LimitKey, LimitValue} | proplists:delete(ExistingKey, Query)]
     end.
 
-%% @spec query_limit(Query::proplist(),
+%% @spec query_limit(Socket::port(),
+%%                   Query::proplist(),
 %%                   Max::integer()) -> proplist()
 %%
 %% @doc Set a limit on the number of returned values for Query.
 %%
 %% XXX: should the missing skip be 0 or -1 (protocol ref and perl versions seem to disagree)
-query_limit(Query, Max) ->
-    query_limit(Query, Max, 0).
+query_limit(_Sock, Query, Max) ->
+    query_limit(_Sock, Query, Max, 0).
 
-%% @spec query_order(Query::proplist(),
+%% @spec query_order(Socket::port(),
+%%                   Query::proplist(),
 %%                   ColName::index_col(),
 %%                   Type::order_type()) -> proplist()
 %%
 %% @doc Set the order for returned values in Query.
-query_order(Query, primary, Type) when is_atom(Type) ->
+query_order(_Sock, Query, primary, Type) when is_atom(Type) ->
     OrderKey = {set_order, primary, Type},
     OrderValue = ["setorder", 
 		  ?NULL, 
@@ -437,7 +441,7 @@ query_order(Query, primary, Type) when is_atom(Type) ->
 	{value, ExistingKey} ->
 	    [{OrderKey, OrderValue} | proplists:delete(ExistingKey, Query)]
     end;
-query_order(Query, ColName, Type) when is_atom(Type) ->
+query_order(_Sock, Query, ColName, Type) when is_atom(Type) ->
     OrderKey = {set_order, ColName, Type},
     OrderValue = ["setorder", 
 		  ?NULL, 
@@ -456,14 +460,14 @@ query_order(Query, ColName, Type) when is_atom(Type) ->
 %%
 %% @doc Run a prepared query against the table and return matching keys.
 search(Socket, Query) ->
-    ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2]).
+    ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), erlang:size(Prop)==2]).
 
 %% @spec searchcount(Socket::port,
 %%                   Query::proplist()) -> [integer()] | error()
 %%
 %% @doc Run a prepared query against the table and get the count of matching keys.
 searchcount(Socket, Query) ->
-    case ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2] ++ ["count"]) of
+    case ?TRaw(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), erlang:size(Prop)==2] ++ ["count"]) of
 	{error, Reason} ->
 	    {error, Reason};
 	[] ->
@@ -477,7 +481,7 @@ searchcount(Socket, Query) ->
 %%
 %% @doc Run a prepared query against the table and remove the matching records.
 searchout(Socket, Query) ->
-    ?TSimple(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), size(Prop)==2] ++ ["out"]).
+    ?TSimple(<<"search">>, [V || {_K, V}=Prop <- Query, is_tuple(Prop), erlang:size(Prop)==2] ++ ["out"]).
 
 %% %% Run a prepared query against the table and get the matching records.  Due
 %% %% to protocol restraints, the returned result cannot include columns whose
@@ -518,6 +522,8 @@ add_condition_op_val(Op) when is_atom(Op) ->
 	    ?QCSTRAND;
 	str_or ->
 	    ?QCSTROR;
+	str_in_list ->
+	    ?QCSTROREQ;
 	str_regex ->
 	    ?QCSTRRX;
 	num_eq ->
